@@ -56,7 +56,9 @@ class WindowSettings {
       await this.save();
     } finally { this.applying = false; }
     // Return the requested mode: native full-screen transitions can finish asynchronously.
-    return { ...this.info(), mode };
+    const info={ ...this.info(), mode };
+    this.changed?.(info);
+    return info;
   }
   async move(id) {
     if (!this.displays().some(d => d.id === id)) throw new Error('Dieser Bildschirm ist nicht mehr angeschlossen.');
