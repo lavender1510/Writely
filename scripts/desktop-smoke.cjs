@@ -50,7 +50,8 @@ async function until(check, label, timeout = 15000) {
       await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];w.focus();w.webContents.focus();});
       await window.bringToFront();
       await window.getByLabel('Fenstermodus',{exact:true}).focus();
-      await window.keyboard.press('Escape');
+      // CDP keyboard events bypass Electron's native before-input-event hook.
+      await app.evaluate(({BrowserWindow})=>{const contents=BrowserWindow.getAllWindows()[0].webContents;contents.sendInputEvent({type:'keyDown',keyCode:'Escape'});contents.sendInputEvent({type:'keyUp',keyCode:'Escape'});});
       await until(()=>app.evaluate(({BrowserWindow})=>!BrowserWindow.getAllWindows()[0].isFullScreen()),'Escape exits fullscreen');
       await until(async()=>(await window.getByLabel('Fenstermodus',{exact:true}).inputValue())==='windowed','settings reflect Escape');
     }
