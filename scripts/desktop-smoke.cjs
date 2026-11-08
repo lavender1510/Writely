@@ -105,7 +105,7 @@ async function until(check, label, timeout = 15000) {
       else throw error;
     }
     try {
-      const pdfText = execFileSync('pdftotext', [pdfPath, '-'], { encoding: 'utf8' });
+      const pdfText = execFileSync('pdftotext', ['-enc', 'UTF-8', pdfPath, '-'], { encoding: 'utf8' });
       assert.match(pdfText, /Prüfung – Größe & Spaß/);
       assert.match(pdfText, /ÄÖÜ äöü ß/);
       report.checks.push('Poppler verifies Unicode PDF text extraction');
