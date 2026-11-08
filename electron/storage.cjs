@@ -421,7 +421,13 @@ async function atomicWrite(target, content) {
     await handle.sync();
     await handle.close();
     handle = null;
-    await fs.rename(temporary, target);
+    // Windows readers and antivirus software can hold the target briefly. Keep the
+    // old file intact and retry the same atomic rename; never delete the target.
+    const delays=[25,50,100,200,400];
+    for(let attempt=0;;attempt++){
+      try{await fs.rename(temporary,target);break;}
+      catch(error){if(!['EPERM','EACCES','EBUSY'].includes(error.code)||attempt>=delays.length)throw error;await new Promise(resolve=>setTimeout(resolve,delays[attempt]));}
+    }
   } catch (error) {
     if (handle) await handle.close().catch(() => {});
     await fs.rm(temporary, { force: true }).catch(() => {});

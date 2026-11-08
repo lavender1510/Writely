@@ -124,3 +124,6 @@ test('save failures for permissions and full disks retain the original file and 
 });
 
 test('oversized backup is rejected before writing while bounded fulltext cache retains search correctness',async t=>{const {root}=await setup(t);const lib=new Library(join(root,'bounded'),{maxBackupBytes:1000,maxCachedCharacters:20});const doc=createDocument('welcome');await lib.put(doc);assert.equal((await lib.search('flüchtiger')).length,1);await assert.rejects(lib.backup(),/Größenlimit/);assert.equal((await lib.get(doc.id)).document.title,doc.title);});
+
+
+test('transient rename locks retry without deleting or changing the prior file',async t=>{const {root}=await setup(t);const fs=require('node:fs/promises'),{atomicWrite}=require('../electron/storage.cjs'),target=join(root,'locked.json');await atomicWrite(target,'old');const rename=fs.rename;let locked=2;t.mock.method(fs,'rename',async(from:string,to:string)=>{if(to===target&&locked-->0){assert.equal(await fs.readFile(target,'utf8'),'old');throw Object.assign(new Error('Temporary sharing violation'),{code:'EPERM'});}return rename(from,to);});await atomicWrite(target,'new');assert.equal(await fs.readFile(target,'utf8'),'new');assert.equal((await readdir(root)).some(name=>name.endsWith('.tmp')),false);});

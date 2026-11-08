@@ -232,14 +232,14 @@ async function until(check, label, timeout = 15000) {
     const crashRecovery=path.join(profile,'local-documents','recovery.writely');
     await until(async()=>JSON.stringify(JSON.parse(await fs.readFile(crashRecovery,'utf8')).content).includes('Nach hartem Abbruch'),'autosave committed before simulated crash');
     const processExit=new Promise(resolve=>app.process().once('exit',resolve));
-    app.process().kill('SIGKILL');await processExit;
+    if(process.platform==='win32')execFileSync('taskkill',['/PID',String(app.process().pid),'/T','/F'],{windowsHide:true});else app.process().kill('SIGKILL');await processExit;
     app=await launch();window=await app.firstWindow();
     window.on('pageerror',error=>report.pageErrors.push(error.message));
     if(process.platform==='linux')await window.setViewportSize({width:1440,height:950});
     await window.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();
     await window.locator('.tiptap[contenteditable="true"]').waitFor();
     assert.match(await window.locator('.tiptap').textContent(),/Nach hartem Abbruch wiederherstellen/);
-    report.checks.push('hard main-process termination recovers the committed latest document on restart');
+    report.checks.push('forced application process-tree termination recovers the committed latest document on restart');
     // Close immediately after an edit, before the debounce can save it.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
     await window.locator('.tiptap').focus();
