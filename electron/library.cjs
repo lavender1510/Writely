@@ -180,10 +180,12 @@ class Library {
   }
   async get(id) {
     if (!validId(id)) throw new Error('Das Dokument wurde nicht gefunden.');
-    await this.queue;
-    const d = (await this.index()).documents.find((d) => d.id === id && !d.deletedAt);
-    if (!d) throw new Error('Das Dokument wurde nicht gefunden oder liegt im Papierkorb.');
-    return { document: await readDocument(this.file(d.storageId)), path: d.path };
+    // Keep the indexed revision alive until the reader has finished parsing it.
+    return this.run(async()=>{
+      const d = (await this.index()).documents.find((d) => d.id === id && !d.deletedAt);
+      if (!d) throw new Error('Das Dokument wurde nicht gefunden oder liegt im Papierkorb.');
+      return { document: await readDocument(this.file(d.storageId)), path: d.path };
+    });
   }
   async search(query) {
     if (typeof query !== 'string' || query.length > 256)

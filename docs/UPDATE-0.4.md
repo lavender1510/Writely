@@ -83,7 +83,7 @@ Die alte Ribbon-Komponente bleibt teilweise umfangreich. Größere Archive verwe
 ## Prüfstand
 
 - Produktionsbuild und TypeScript-Prüfung.
-- 65 Unit-/Modell-/Format-/Dienste-Tests, einschließlich der bisherigen Tests.
+- 66 Unit-/Modell-/Format-/Dienste-Tests, einschließlich der bisherigen Tests.
 - 17 Playwright-Tests gegen den Produktionsbuild: Speichern, Recovery, Dokumentwechsel, globale Styles, Tabellen/Bilder, Layout-Undo, Light/Dark, Bibliothek/Papierkorb, Textsuche über Mark-Grenzen, Abbruch gefährlicher Regex, dynamisches TOC und Noten-Undo/Recovery.
 - Echter Electron-Desktoptest: isolierte Bridge, native Dateidialoge, Wörterbücher, Bibliotheksbackup, Löschbestätigung, DOCX/ODT/PDF, Schrift-/Unicode-Prüfung, gemischte Papiergrößen, Vorschau, harter Prozessabbruch/Neustart und frische Eingaben beim nativen Schließen.
 - Paketierte Linux-App lokal geprüft; Windows-CI baut Setup/ZIP und prüft anschließend ebenfalls die fertig gepackte App.
