@@ -46,8 +46,8 @@ jobs:
           const get = path => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8' }));
           const build = get(`repos/${repo}/actions/runs/${run}`);
           if (build.conclusion !== 'success' || build.head_sha !== sha) throw new Error('Release requires a successful build of the exact commit');
-          const release = get(`repos/${repo}/releases/tags/${tag}`);
-          if (!release.draft || release.target_commitish !== sha) throw new Error('Expected the prepared draft for the tested commit');
+          const release = get(`repos/${repo}/releases?per_page=100`).find(item => item.tag_name === tag);
+          if (!release?.draft || release.target_commitish !== sha) throw new Error('Expected the prepared draft for the tested commit');
           JS
       - uses: actions/download-artifact@v4
         with:
