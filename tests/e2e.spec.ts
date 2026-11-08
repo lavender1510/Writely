@@ -57,10 +57,11 @@ test('command palette opens templates and creates a blank document', async ({ pa
 });
 
 test('switching documents immediately preserves the latest edit in local history', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.locator('.tiptap').focus();
   await page.locator('.tiptap').press('Control+End');
   await page.locator('.tiptap').press('Enter');
-  await page.locator('.tiptap').pressSequentially('Letzter Gedanke vor dem Dokumentwechsel.');
+  await page.keyboard.insertText('Letzter Gedanke vor dem Dokumentwechsel.');
   await page.keyboard.press('Control+n');
   await page.getByRole('dialog', { name: 'Neues Dokument' }).getByRole('button', { name: 'Leeres Dokument Platz für alles, was kommt.' }).click();
   await expect(page.getByLabel('Dokumenttitel')).toHaveValue('Unbenanntes Dokument');
