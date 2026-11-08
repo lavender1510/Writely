@@ -2,7 +2,11 @@
 
 Stand: 8. November 2026. Der Funktionsumfang wird bewusst nach Version getrennt. „Grundlegend“ bedeutet unterstützte Strukturen mit möglichen Layoutverlusten, keinen vollständigen Office-Roundtrip.
 
-## Aktueller Stand: 0.3.0-alpha.1
+## Entwicklungsstand 0.4 (noch kein Release)
+
+Das Dokumentmodell erhält Schema 2 mit Migration aus Schema 1. DOCX und ODT exportieren echte Fuß-/Endnoten und importieren externe Notentexte als Klartext. Das neue Inhaltsverzeichnis wird in DOCX anklickbar als Momentaufnahme ausgegeben; ODT enthält ein natives Verzeichnis mit Eintragskörper. PDF/HTML drucken verlinkte Noten am Dokumentende. Verzeichnisse enthalten vorerst keine Seitenzahlen. Exportdialoge benennen diese Abweichungen vor der Ausgabe und erlauben den Abbruch. Details: [Update 0.4](UPDATE-0.4.md).
+
+## Veröffentlichter Stand: 0.3.0-alpha.1
 
 DOCX und ODT unterstützen grundlegende Abschnittsgeometrie, Kopf-/Fußzeilen, Tabellen und Bilder; PDF unterstützt echte gemischte Seitengrößen und native Vorschau. ODT hat einen eigenen Schreiber; RTF und EPUB nutzen lokal gebündeltes Pandoc. Unveränderte DOCX-/ODT-/EPUB-Exporte erhalten zusätzliche, per Paketfingerabdruck geprüfte Writely-Roundtripdaten. Externe Änderungen werden semantisch importiert. EPUB ist umfließend. Keine vollständige Office-Treue; siehe [aktuelle Release-Hinweise](RELEASE-NOTES.md).
 

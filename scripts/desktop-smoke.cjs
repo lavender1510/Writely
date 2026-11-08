@@ -24,13 +24,15 @@ async function until(check, label, timeout = 15000) {
   await fs.mkdir(work, { recursive: true });
   let app;
   let window;
-  try {
-    app = await _electron.launch({
+  const launch = () => _electron.launch({
       executablePath: process.env.ELECTRON_PATH || require('electron'),
       args: [...(process.platform === 'linux' ? ['--no-sandbox', '--disable-gpu', '--ozone-platform=headless'] : []), `--user-data-dir=${profile}`, root],
       env: { ...process.env, ...(process.platform === 'linux' ? { XDG_CONFIG_HOME: path.join(work, 'config'), XDG_CACHE_HOME: path.join(work, 'cache') } : {}) },
       timeout: 20000,
     });
+
+  try {
+    app=await launch();
     let desktopLog='';app.process().stderr.on('data',chunk=>{desktopLog=(desktopLog+chunk.toString()).slice(-12000);report.desktopLog=desktopLog;});
     window = await app.firstWindow();
     await app.evaluate(({BrowserWindow})=>{globalThis.__windowKeys=[];const w=BrowserWindow.getAllWindows()[0];w.webContents.on('before-input-event',(_event,input)=>{if(input.key==='Escape'||input.key==='F11')globalThis.__windowKeys.push({key:input.key,type:input.type,full:w.isFullScreen()});});});
@@ -65,13 +67,14 @@ async function until(check, label, timeout = 15000) {
     assert.equal(await window.evaluate(() => typeof window.require), 'undefined');
     assert.equal(await app.evaluate(({ app }) => app.getPath('userData')), profile);
     await window.screenshot({ path: path.join(work, 'desktop.png') });
+    if(process.platform==='linux')await window.setViewportSize({width:1440,height:950});
     report.checks.push('real Electron renderer + isolated preload + isolated userData');
 
     const savedPath = path.join(work, 'desktop.writely');
     await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, savedPath);
     await window.keyboard.press('Control+s');
     const saved = await until(async () => JSON.parse(await fs.readFile(savedPath, 'utf8')), 'native save .writely');
-    assert.equal(saved.schemaVersion, 1);
+    assert.equal(saved.schemaVersion, 2);
     assert.equal(saved.title, 'Gedanken, die bleiben');
     report.checks.push('native Save dialog bridge writes valid .writely');
 
@@ -96,6 +99,52 @@ async function until(check, label, timeout = 15000) {
     assert.equal(await window.locator('.tiptap img').count(), 1);
     assert.match(await window.locator('.tiptap strong').textContent(), /fett gesetzter/);
     report.checks.push('native Open reads headings, bold, Unicode, table and embedded PNG');
+    assert.deepEqual(await window.evaluate(()=>window.writely.spellCheck('de-DE',['Haus','Huas','Größe'])),['Huas']);
+    assert.ok((await window.evaluate(()=>window.writely.spellSuggest('de-DE','Huas'))).includes('Haus'));
+    await window.evaluate(()=>window.writely.dictionaryChange('de-DE','Writely',false));
+    assert.deepEqual(await window.evaluate(()=>window.writely.spellCheck('de-DE',['Writely'])),[]);
+    await window.evaluate(()=>window.writely.dictionaryChange('de-DE','Writely',true));
+    report.checks.push('bundled offline German dictionary checks, suggests, and persists personal words through secure IPC');
+    await window.keyboard.press('Control+h');
+    const liveSearch=window.getByRole('region',{name:'Suchen und Ersetzen'});
+    await liveSearch.getByLabel('Suchen',{exact:true}).fill('Gedanke mit');
+    await until(async()=>await liveSearch.getByRole('status').textContent()==='1 von 1','native search worker finds a match across marks');
+    assert.ok(await window.locator('.search-hit').count()>0);
+    await liveSearch.getByRole('button',{name:'Suche schließen'}).click();
+    report.checks.push('native live-search worker runs from local assets and highlights a cross-format match');
+    await window.locator('.tiptap').focus();await window.keyboard.press('Control+End');await window.keyboard.insertText(' Huas');
+    await until(async()=>await window.locator('.spelling-error').filter({hasText:'Huas'}).count()>0,'native misspelling underline');
+    await window.keyboard.press('Shift+F10');
+    const correction=window.getByRole('menu',{name:'Korrekturen für Huas'});
+    await correction.getByRole('menuitem',{name:'Haus',exact:true}).click();
+    assert.match(await window.locator('.tiptap').textContent(),/Haus/);
+    await window.keyboard.press('Control+o');
+    await until(async()=>!(await window.locator('.tiptap').textContent()).includes('Huas')&&(await window.locator('.tiptap h1').textContent())==='Prüfung – Größe & Spaß','reopen fixture after spelling correction');
+    report.checks.push('native red underlines and keyboard context menu apply a local spelling suggestion');
+
+
+    const backupPath=path.join(work,'library.writely-backup');
+    await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},backupPath);
+    await window.evaluate(()=>window.writely.exportBackup());
+    const backup=JSON.parse(await fs.readFile(backupPath,'utf8'));assert.equal(backup.format,'WritelyLibraryBackup');
+    const beforeBackup=await window.evaluate(()=>window.writely.libraryList());
+    await app.evaluate(({dialog},filePath)=>{dialog.showOpenDialog=async()=>({canceled:false,filePaths:[filePath]});dialog.showMessageBox=async()=>({response:1,checkboxChecked:false});},backupPath);
+    await window.evaluate(()=>window.writely.importBackup());
+    const afterBackup=await window.evaluate(()=>window.writely.libraryList());assert.equal(afterBackup.documents.length,beforeBackup.documents.length*2);
+    assert.equal(afterBackup.documents.find(d=>d.id===fixture.id).title,fixture.title);
+    report.checks.push('native library backup validates and merges documents without overwriting current IDs');
+    const originalIds=new Set(beforeBackup.documents.map(d=>d.id)),trashId=afterBackup.documents.find(d=>!originalIds.has(d.id)).id;
+    await window.evaluate(id=>window.writely.libraryMutate('document-remove',{id}),trashId);
+    await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:0,checkboxChecked:false});});
+    await window.evaluate(id=>window.writely.libraryMutate('document-purge',{id,confirmed:true}),trashId);
+    assert.ok((await window.evaluate(()=>window.writely.libraryList())).documents.some(d=>d.id===trashId));
+    await app.evaluate(({dialog})=>{dialog.showMessageBox=async()=>({response:1,checkboxChecked:false});});
+    await window.evaluate(id=>window.writely.libraryMutate('document-purge',{id}),trashId);
+    assert.equal((await window.evaluate(()=>window.writely.libraryList())).documents.some(d=>d.id===trashId),false);
+    assert.ok((await fs.stat(fixturePath)).isFile());
+    report.checks.push('native purge cannot bypass confirmation and preserves Explorer original files');
+
+
 
     const docxPath = path.join(work, 'desktop.docx');
     await app.evaluate(({ dialog }, filePath) => { dialog.showSaveDialog = async () => ({ canceled: false, filePath }); }, docxPath);
@@ -164,6 +213,33 @@ async function until(check, label, timeout = 15000) {
     await app.evaluate(({BrowserWindow},id)=>{for(const w of BrowserWindow.getAllWindows())if(w.id!==id)w.close();},mainWindowId);
     report.checks.push('mixed A5 portrait/A4 landscape PDF uses genuine page boxes and opens native preview');
 
+
+    const referencesDoc={...fixture,id:'references-fixture',content:{type:'doc',content:[{type:'toc',attrs:{id:'toc-demo',title:'Inhaltsverzeichnis',maxLevel:6}},{type:'heading',attrs:{level:1,anchorId:'chapter-demo'},content:[{type:'text',text:'Kapitel mit Noten'}]},{type:'paragraph',content:[{type:'text',text:'Eine Aussage'},{type:'note',attrs:{id:'note-demo',kind:'footnote',text:'Wissenschaftliche Fußnote – ÄÖÜ ß.'}}]}]}};
+    const referencesPDF=path.join(work,'references.pdf');
+    await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});dialog.showMessageBox=async()=>({response:1,checkboxChecked:false});},referencesPDF);
+    await window.evaluate(doc=>window.writely.exportFile('pdf',doc,''),referencesDoc);
+    assert.ok((await fs.readFile(referencesPDF)).length>500);
+    try{const text=execFileSync('pdftotext',[referencesPDF,'-'],{encoding:'utf8'});assert.match(text,/Wissenschaftliche Fußnote/);assert.match(text,/Inhaltsverzeichnis/);}catch(error){if(error.code==='ENOENT')report.skipped.push('Reference PDF text inspection: pdftotext is not installed');else throw error;}
+    const referencesODT=path.join(work,'references.odt');
+    await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},referencesODT);
+    await window.evaluate(doc=>window.writely.exportFile('odt',doc,''),referencesDoc);
+    const zip=await require('jszip').loadAsync(await fs.readFile(referencesODT));assert.match(await zip.file('content.xml').async('string'),/text:note-class="footnote"/);
+    report.checks.push('native PDF and ODT export retain notes and TOC with explicit format warnings');
+
+    await window.locator('.tiptap').focus();
+    await window.keyboard.press('Control+End');await window.keyboard.press('Enter');
+    await window.keyboard.insertText('Nach hartem Abbruch wiederherstellen – Größe & Spaß.');
+    const crashRecovery=path.join(profile,'local-documents','recovery.writely');
+    await until(async()=>JSON.stringify(JSON.parse(await fs.readFile(crashRecovery,'utf8')).content).includes('Nach hartem Abbruch'),'autosave committed before simulated crash');
+    const processExit=new Promise(resolve=>app.process().once('exit',resolve));
+    app.process().kill('SIGKILL');await processExit;
+    app=await launch();window=await app.firstWindow();
+    window.on('pageerror',error=>report.pageErrors.push(error.message));
+    if(process.platform==='linux')await window.setViewportSize({width:1440,height:950});
+    await window.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();
+    await window.locator('.tiptap[contenteditable="true"]').waitFor();
+    assert.match(await window.locator('.tiptap').textContent(),/Nach hartem Abbruch wiederherstellen/);
+    report.checks.push('hard main-process termination recovers the committed latest document on restart');
     // Close immediately after an edit, before the debounce can save it.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());
     await window.locator('.tiptap').focus();

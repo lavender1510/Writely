@@ -2,15 +2,24 @@ const { app, BrowserWindow, dialog, ipcMain, Menu, session, screen } = require('
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL, fileURLToPath } = require('node:url');
-const { LocalStore, MAX_FILE_BYTES, validateDocument, atomicWrite, readDocument } = require('./storage.cjs');
+const {
+  LocalStore,
+  MAX_FILE_BYTES,
+  validateDocument,
+  atomicWrite,
+  readDocument,
+} = require('./storage.cjs');
 const { bundledFontFaces } = require('./pdf-styles.cjs');
+
+for(const feature of ['disable-background-networking','disable-component-update','disable-domain-reliability'])app.commandLine.appendSwitch(feature);
 
 const APP_DIRECTORY = path.resolve(__dirname, '..', 'dist');
 let mainWindow;
 let store;
 let library;
+let proofing;
 let windowSettings;
-let pendingLaunch=process.argv.find(arg=>/\.writely$/i.test(arg));
+let pendingLaunch = process.argv.find((arg) => /\.writely$/i.test(arg));
 let isQuitting = false;
 let closing = false;
 let closePending = false;
@@ -18,35 +27,67 @@ let pendingFlush;
 let cachedFontCSS;
 const writablePaths = new Set();
 const devURL = process.env.WRITELY_DEV_URL;
-if (devURL && !/^http:\/\/(localhost|127\.0\.0\.1):\d+\/?$/.test(devURL)) throw new Error('Die Entwicklungsadresse muss lokal sein.');
+if (devURL && !/^http:\/\/(localhost|127\.0\.0\.1):\d+\/?$/.test(devURL))
+  throw new Error('Die Entwicklungsadresse muss lokal sein.');
 
 function isMainFrame(event) {
-  return mainWindow && !mainWindow.isDestroyed() && event.sender === mainWindow.webContents && event.senderFrame === mainWindow.webContents.mainFrame;
+  return (
+    mainWindow &&
+    !mainWindow.isDestroyed() &&
+    event.sender === mainWindow.webContents &&
+    event.senderFrame === mainWindow.webContents.mainFrame
+  );
 }
-function assertSender(event) { if (!isMainFrame(event)) throw new Error('Dieser Zugriff auf Writely ist nicht erlaubt.'); }
+function assertSender(event) {
+  if (!isMainFrame(event)) throw new Error('Dieser Zugriff auf Writely ist nicht erlaubt.');
+}
 function germanError(error) {
   const message = typeof error?.message === 'string' ? error.message : '';
-  if (/^(Dieser Fenstermodus|Dieser Bildschirm|Die Writely-Datei|Diese Dokumentversion|Dieses Dateiformat|Das Dokument|Der Import|Die Datei)/.test(message)) return message;
-  if (error?.code === 'ENOENT') return 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben.';
-  if (['EACCES', 'EPERM', 'EBUSY'].includes(error?.code)) return 'Die Datei konnte nicht geschrieben werden. Prüfe die Zugriffsrechte und ob sie in einer anderen App geöffnet ist.';
-  if (error?.code === 'ENOSPC') return 'Die Datei konnte nicht gespeichert werden. Auf dem Laufwerk ist kein freier Speicherplatz mehr.';
+  if (
+    /^(Ein Ordner|Der Zielordner|Die lokale|Die Wörterbuch|Das Benutzerwörterbuch|Die Rechtschreibanfrage|Das Wörterbuchwort|Die lokale Rechtschreibprüfung|Die Suchanfrage|Diese Bibliotheksaktion|Dieser Fenstermodus|Dieser Bildschirm|Die Writely-Datei|Diese Dokumentversion|Dieses Dateiformat|Das Dokument|Der Import|Die Datei)/.test(
+      message,
+    )
+  )
+    return message;
+  if (error?.code === 'ENOENT')
+    return 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben.';
+  if (['EACCES', 'EPERM', 'EBUSY'].includes(error?.code))
+    return 'Die Datei konnte nicht geschrieben werden. Prüfe die Zugriffsrechte und ob sie in einer anderen App geöffnet ist.';
+  if (error?.code === 'ENOSPC')
+    return 'Die Datei konnte nicht gespeichert werden. Auf dem Laufwerk ist kein freier Speicherplatz mehr.';
   return 'Die Datei konnte nicht verarbeitet werden. Prüfe das Format und versuche es erneut.';
 }
 function handle(name, callback) {
   ipcMain.handle(`writely:${name}`, async (event, ...args) => {
     assertSender(event);
-    try { return await callback(...args); } catch (error) { throw new Error(germanError(error)); }
+    try {
+      return await callback(...args);
+    } catch (error) {
+      throw new Error(germanError(error));
+    }
   });
 }
-function documentName(document) { return (document.title || 'Unbenannt').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 180) || 'Unbenannt'; }
+function documentName(document) {
+  return (
+    (document.title || 'Unbenannt')
+      .replace(/[<>:"/\\|?*\x00-\x1f]/g, '')
+      .trim()
+      .slice(0, 180) || 'Unbenannt'
+  );
+}
 
 async function exportPDF(document, html) {
-  const {renderDocument,sectionBody}=require('./print-layout.cjs');
-  return Buffer.from(await renderDocument(document,(section,css)=>exportPDFSection({...document,page:section.layout},sectionBody(section,document),css)));
+  const { renderDocument, sectionBody } = require('./print-layout.cjs');
+  return Buffer.from(
+    await renderDocument(document, (section, css) =>
+      exportPDFSection({ ...document, page: section.layout }, sectionBody(section, document), css),
+    ),
+  );
 }
-async function exportPDFSection(document, html, pageCSS='') {
+async function exportPDFSection(document, html, pageCSS = '') {
   const { safeHtml, exportStyles } = require('./formats.cjs');
-  if (typeof html !== 'string' || Buffer.byteLength(html) > MAX_FILE_BYTES) throw new Error('Das Dokument ist für den PDF-Export zu groß.');
+  if (typeof html !== 'string' || Buffer.byteLength(html) > MAX_FILE_BYTES)
+    throw new Error('Das Dokument ist für den PDF-Export zu groß.');
   const temporaryRoot = path.join(app.getPath('temp'), 'writely-pdf');
   await fs.mkdir(temporaryRoot, { recursive: true });
   const temporaryDirectory = await fs.mkdtemp(path.join(temporaryRoot, 'export-'));
@@ -54,18 +95,38 @@ async function exportPDFSection(document, html, pageCSS='') {
   pdfSession.webRequest.onBeforeRequest((details, callback) => {
     let allowed = details.url.startsWith('data:');
     if (details.url.startsWith('file:')) {
-      try { const relative = path.relative(temporaryRoot, fileURLToPath(details.url)); allowed = relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); } catch { allowed = false; }
+      try {
+        const relative = path.relative(temporaryRoot, fileURLToPath(details.url));
+        allowed =
+          relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+      } catch {
+        allowed = false;
+      }
     }
     callback({ cancel: !allowed });
   });
   pdfSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-  const pdfWindow = new BrowserWindow({ show: false, webPreferences: { session: pdfSession, sandbox: true, contextIsolation: true, nodeIntegration: false, javascript: true, webSecurity: true } });
+  const pdfWindow = new BrowserWindow({
+    show: false,
+    webPreferences: {
+      session: pdfSession,
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      javascript: true,
+      webSecurity: true,
+    },
+  });
   try {
     const body = safeHtml(html);
     cachedFontCSS ??= bundledFontFaces(path.join(APP_DIRECTORY, 'assets'));
     const fontCSS = await cachedFontCSS;
     const styleCSS = typeof exportStyles === 'function' ? exportStyles(document) : '';
-    const title = document.title.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
+    const title = document.title.replace(
+      /[&<>"']/g,
+      (character) =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character],
+    );
     const pdfHTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:"><style>${fontCSS}body{font-family:'Source Serif 4',serif;font-size:12pt;line-height:1.6;color:#1c1c20}h1,h2,h3,h4,h5,h6{break-after:avoid}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:6px}blockquote{border-left:3px solid #8b6ace;margin-left:0;padding-left:16px;color:#555}pre{white-space:pre-wrap}a{color:inherit;text-decoration:underline}p{orphans:3;widows:3}${styleCSS}${pageCSS}</style></head><body>${body}</body></html>`;
     // A temporary local page avoids Chromium's navigation URL limit with embedded images/fonts.
     const pdfFile = path.join(temporaryDirectory, 'document.html');
@@ -73,47 +134,214 @@ async function exportPDFSection(document, html, pageCSS='') {
     await pdfWindow.loadFile(pdfFile);
     // Only this application-owned statement executes; the page's CSP rejects all document scripts.
     await pdfWindow.webContents.executeJavaScript('document.fonts.ready.then(() => true)', true);
-    await pdfWindow.webContents.executeJavaScript('Promise.all(Array.from(document.images).map(img=>img.decode().catch(()=>{})))',true);
-    return await pdfWindow.webContents.printToPDF({printBackground:true,preferCSSPageSize:true,pageSize:{width:Math.round(document.page.widthMm*1000),height:Math.round(document.page.heightMm*1000)},margins:{top:0,bottom:0,left:0,right:0},generateDocumentOutline:true});
-  } finally { pdfWindow.destroy(); await fs.rm(temporaryDirectory, { recursive: true, force: true }); }
+    await pdfWindow.webContents.executeJavaScript(
+      'Promise.all(Array.from(document.images).map(img=>img.decode().catch(()=>{})))',
+      true,
+    );
+    return await pdfWindow.webContents.printToPDF({
+      printBackground: true,
+      preferCSSPageSize: true,
+      pageSize: {
+        width: Math.round(document.page.widthMm * 1000),
+        height: Math.round(document.page.heightMm * 1000),
+      },
+      margins: { top: 0, bottom: 0, left: 0, right: 0 },
+      generateDocumentOutline: true,
+    });
+  } finally {
+    pdfWindow.destroy();
+    await fs.rm(temporaryDirectory, { recursive: true, force: true });
+  }
 }
 
 function registerBridge() {
-  handle('clipboard-image',()=>{const image=require('electron').clipboard.readImage();if(image.isEmpty())throw new Error('Die Datei fehlt: In der Zwischenablage liegt kein Bild.');return image.toDataURL();});
-  handle('screenshot',async()=>{const sources=await require('electron').desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:1920,height:1080}});if(!sources.length)throw new Error('Die Datei konnte nicht erstellt werden: Kein Bildschirm für einen Screenshot verfügbar.');const result=await dialog.showMessageBox(mainWindow,{type:'question',title:'Screenshot einfügen',message:'Welchen Bildschirm möchtest du als Bild einfügen?',buttons:[...sources.map(s=>s.name),'Abbrechen'],cancelId:sources.length});if(result.response>=sources.length)return null;return sources[result.response].thumbnail.toDataURL();});
-  handle('preview', async document => {
+  handle('spell-check', (language, words) => proofing.check(language, words));
+  handle('spell-suggest', (language, word) => proofing.suggest(language, word));
+  handle('dictionary-list', (language) => proofing.words(language));
+  handle('dictionary-change', (language, word, remove) => {
+    if (typeof remove !== 'boolean') throw new Error('Die Wörterbuchaktion ist ungültig.');
+    return proofing.change(language, word, remove);
+  });
+  handle('clipboard-image', () => {
+    const image = require('electron').clipboard.readImage();
+    if (image.isEmpty()) throw new Error('Die Datei fehlt: In der Zwischenablage liegt kein Bild.');
+    return image.toDataURL();
+  });
+  handle('screenshot', async () => {
+    const sources = await require('electron').desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: 1920, height: 1080 },
+    });
+    if (!sources.length)
+      throw new Error(
+        'Die Datei konnte nicht erstellt werden: Kein Bildschirm für einen Screenshot verfügbar.',
+      );
+    const result = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: 'Screenshot einfügen',
+      message: 'Welchen Bildschirm möchtest du als Bild einfügen?',
+      buttons: [...sources.map((s) => s.name), 'Abbrechen'],
+      cancelId: sources.length,
+    });
+    if (result.response >= sources.length) return null;
+    return sources[result.response].thumbnail.toDataURL();
+  });
+  handle('preview', async (document) => {
     validateDocument(document);
+    const warnings = require('./document-schema.mjs').exportWarnings(document, 'pdf');
+    if (warnings.length) {
+      const answer = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Drucklayout prüfen',
+        message: warnings.join('\n\n'),
+        buttons: ['Abbrechen', 'Vorschau erstellen'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (answer.response !== 1) return;
+    }
     const bytes = await exportPDF(document, '');
     const dir = await fs.mkdtemp(path.join(app.getPath('temp'), 'writely-preview-'));
     const file = path.join(dir, 'Druckvorschau.pdf');
     await atomicWrite(file, bytes);
     const viewerOrigin = 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
-    const sameFile = url => {
+    const sameFile = (url) => {
       try {
         if (!url.startsWith('file:')) return false;
-        const candidate = path.resolve(fileURLToPath(url)), expected = path.resolve(file);
-        return process.platform === 'win32' ? candidate.toLowerCase() === expected.toLowerCase() : candidate === expected;
-      } catch { return false; }
+        const candidate = path.resolve(fileURLToPath(url)),
+          expected = path.resolve(file);
+        return process.platform === 'win32'
+          ? candidate.toLowerCase() === expected.toLowerCase()
+          : candidate === expected;
+      } catch {
+        return false;
+      }
     };
-    const isViewerDocument = url => sameFile(url) || url.startsWith(viewerOrigin);
+    const isViewerDocument = (url) => sameFile(url) || url.startsWith(viewerOrigin);
     const previewSession = session.fromPartition('preview-' + Date.now());
-    previewSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !isViewerDocument(details.url) && !details.url.startsWith('chrome://resources/') && !details.url.startsWith('chrome://pdf/') && !details.url.startsWith('blob:') && !details.url.startsWith('data:') }));
+    previewSession.webRequest.onBeforeRequest((details, callback) =>
+      callback({
+        cancel:
+          !isViewerDocument(details.url) &&
+          !details.url.startsWith('chrome://resources/') &&
+          !details.url.startsWith('chrome://pdf/') &&
+          !details.url.startsWith('blob:') &&
+          !details.url.startsWith('data:'),
+      }),
+    );
     previewSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
-    const preview = new BrowserWindow({ parent: mainWindow, icon: path.join(APP_DIRECTORY, 'writely.png'), width: 1100, height: 850, title: 'Writely · Druckvorschau', webPreferences: { session: previewSession, sandbox: true, contextIsolation: true, nodeIntegration: false, plugins: true } });
+    const preview = new BrowserWindow({
+      parent: mainWindow,
+      icon: path.join(APP_DIRECTORY, 'writely.png'),
+      width: 1100,
+      height: 850,
+      title: 'Writely · Druckvorschau',
+      webPreferences: {
+        session: previewSession,
+        sandbox: true,
+        contextIsolation: true,
+        nodeIntegration: false,
+        plugins: true,
+      },
+    });
     preview.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-    preview.webContents.on('will-navigate', (event, url) => { if (!isViewerDocument(url)) event.preventDefault(); });
+    preview.webContents.on('will-navigate', (event, url) => {
+      if (!isViewerDocument(url)) event.preventDefault();
+    });
     preview.on('closed', () => fs.rm(dir, { recursive: true, force: true }).catch(() => {}));
-    try { await preview.loadFile(file); }
-    catch (error) { console.error('Writely PDF preview:', error); if (!preview.isDestroyed()) preview.destroy(); throw error; }
+    try {
+      await preview.loadFile(file);
+    } catch (error) {
+      console.error('Writely PDF preview:', error);
+      if (!preview.isDestroyed()) preview.destroy();
+      throw error;
+    }
   });
-  handle('window-settings',()=>windowSettings.info());
-  handle('window-mode',mode=>windowSettings.setMode(mode));
-  handle('window-display',id=>windowSettings.move(id));
-  handle('launch-open',async()=>{if(!pendingLaunch)return null;const filePath=path.resolve(pendingLaunch);pendingLaunch=undefined;const document=await readDocument(filePath);writablePaths.add(filePath);await library.put(document,filePath);return {document,path:filePath};});
-  handle('library-list',()=>library.list());
-  handle('library-get',async id=>{const result=await library.get(id);if(result.path)writablePaths.add(path.resolve(result.path));return result;});
-  handle('library-put',(doc,filePath)=>library.put(validateDocument(doc),typeof filePath==='string'&&writablePaths.has(path.resolve(filePath))?filePath:undefined));
-  handle('library-mutate',(action,data)=>library.mutate(action,data));
+  handle('window-settings', () => windowSettings.info());
+  handle('window-mode', (mode) => windowSettings.setMode(mode));
+  handle('window-display', (id) => windowSettings.move(id));
+  handle('launch-open', async () => {
+    if (!pendingLaunch) return null;
+    const filePath = path.resolve(pendingLaunch);
+    pendingLaunch = undefined;
+    const document = await readDocument(filePath);
+    writablePaths.add(filePath);
+    await library.put(document, filePath);
+    return { document, path: filePath };
+  });
+  handle('library-list', () => library.list());
+  handle('library-get', async (id) => {
+    const result = await library.get(id);
+    if (result.path) writablePaths.add(path.resolve(result.path));
+    return result;
+  });
+  handle('library-put', (doc, filePath) =>
+    library.put(
+      validateDocument(doc),
+      typeof filePath === 'string' && writablePaths.has(path.resolve(filePath))
+        ? filePath
+        : undefined,
+    ),
+  );
+  handle('library-mutate', async (action, data) => {
+    if (action === 'document-purge') {
+      if (!data || typeof data.id !== 'string') throw new Error('Die Datei-ID ist ungültig.');
+      const record = (await library.list()).documents.find((d) => d.id === data.id && d.deletedAt);
+      if (!record) throw new Error('Das Dokument liegt nicht im Papierkorb.');
+      const result = await dialog.showMessageBox(mainWindow, {
+        type: 'warning',
+        title: 'Endgültig löschen?',
+        message: `„${record.title}“ samt lokalen Versionen endgültig löschen?`,
+        detail:
+          'Die Writely-Bibliothekskopie und zugehörige Wiederherstellungsstände werden entfernt. Selbst gewählte Originaldateien im Explorer bleiben erhalten.',
+        buttons: ['Abbrechen', 'Endgültig löschen'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (result.response !== 1) return library.list();
+      await store.forgetDocument(data.id);
+      return library.mutate(action, { id: data.id, confirmed: true });
+    }
+    return library.mutate(action, data);
+  });
+  handle('library-search', (query) => library.search(query));
+  handle('backup-export', async () => {
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: 'Bibliotheksbackup speichern',
+      defaultPath: 'Writely-Bibliothek.writely-backup',
+      filters: [{ name: 'Writely-Bibliotheksbackup', extensions: ['writely-backup'] }],
+    });
+    if (result.canceled || !result.filePath) return null;
+    const bytes = await library.backup();
+    await atomicWrite(result.filePath, bytes);
+    return { path: result.filePath };
+  });
+  handle('backup-import', async () => {
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Bibliotheksbackup wiederherstellen',
+      properties: ['openFile'],
+      filters: [{ name: 'Writely-Bibliotheksbackup', extensions: ['writely-backup'] }],
+    });
+    if (result.canceled || !result.filePaths[0]) return null;
+    const file = result.filePaths[0];
+    if ((await fs.stat(file)).size > 256 * 1024 * 1024)
+      throw new Error('Die Datei ist größer als 256 MB.');
+    const bytes = await fs.readFile(file);
+    const confirm = await dialog.showMessageBox(mainWindow, {
+      type: 'question',
+      title: 'Bibliothek ergänzen',
+      message: 'Dieses Backup als zusätzliche Bibliothekseinträge wiederherstellen?',
+      detail:
+        'Vorhandene Dokumente werden nicht überschrieben. Ordner, Dokumente, Papierkorb und Vorlagen werden mit neuen IDs ergänzt. Original-Dateipfade werden nicht reaktiviert.',
+      buttons: ['Abbrechen', 'Wiederherstellen'],
+      defaultId: 0,
+      cancelId: 0,
+    });
+    if (confirm.response !== 1) return null;
+    return library.restoreBackup(bytes);
+  });
+  handle('history-settings', () => store.settings());
+  handle('history-configure', (value) => store.configure(value));
   handle('flush-reply', (token, document) => {
     if (!pendingFlush || pendingFlush.token !== token) return;
     const snapshot = document === undefined ? null : validateDocument(document);
@@ -121,55 +349,180 @@ function registerBridge() {
     pendingFlush = undefined;
     resolve(snapshot);
   });
-  handle('request-close', async document => {
+  handle('request-close', async (document) => {
     await store.autosave(validateDocument(document));
     await library.put(document);
     await store.flush();
     // Let the invocation return before destroying its renderer process.
-    setImmediate(() => { closing = true; if (!mainWindow.isDestroyed()) mainWindow.close(); });
+    setImmediate(() => {
+      closing = true;
+      if (!mainWindow.isDestroyed()) mainWindow.close();
+    });
   });
   handle('open', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, { title: 'Dokument öffnen', properties: ['openFile'], filters: [{ name: 'Unterstützte Dokumente', extensions: ['writely', 'docx', 'txt', 'md', 'markdown', 'html', 'htm', 'odt', 'rtf', 'epub'] }, { name: 'Alle Dateien', extensions: ['*'] }] });
+    const result = await dialog.showOpenDialog(mainWindow, {
+      title: 'Dokument öffnen',
+      properties: ['openFile'],
+      filters: [
+        {
+          name: 'Unterstützte Dokumente',
+          extensions: [
+            'writely',
+            'docx',
+            'txt',
+            'md',
+            'markdown',
+            'html',
+            'htm',
+            'odt',
+            'rtf',
+            'epub',
+          ],
+        },
+        { name: 'Alle Dateien', extensions: ['*'] },
+      ],
+    });
     if (result.canceled || !result.filePaths[0]) return null;
     const filePath = result.filePaths[0];
     const stat = await fs.stat(filePath);
-    if (stat.size > MAX_FILE_BYTES) throw new Error('Die Datei ist größer als 64 MB. Bitte teile sie vor dem Import auf.');
+    if (stat.size > MAX_FILE_BYTES)
+      throw new Error('Die Datei ist größer als 64 MB. Bitte teile sie vor dem Import auf.');
     const extension = path.extname(filePath).toLowerCase().slice(1);
     let document;
     if (extension === 'writely') document = await readDocument(filePath);
-    else if(['odt','rtf','epub'].includes(extension)){const buffer=await fs.readFile(filePath);const recovered=extension==='odt'||extension==='epub'?await require('./roundtrip.cjs').recover(buffer):null;const layoutImport=!recovered&&extension==='odt'?await require('./odt-layout.cjs').prepare(buffer):null;const html=recovered?null:await require('./converters.cjs').convert(layoutImport?.buffer||buffer,extension,'html',path.basename(filePath));document=recovered||validateDocument(await require('./formats.cjs').importFile(html,'html',path.basename(filePath)));if(layoutImport){document.content=require('./docx-layout.cjs').restore(document.content,layoutImport.tokens);if(layoutImport.page)document.page=layoutImport.page;}if(!recovered)document.importWarnings=['Semantischer Import: Seitenlayout, Kopf-/Fußzeilen, Noten und Kommentare können vereinfacht werden. Bitte prüfe das Ergebnis.'];}
-    else document = validateDocument(await require('./formats.cjs').importFile(await fs.readFile(filePath), extension, path.basename(filePath)));
+    else if (['odt', 'rtf', 'epub'].includes(extension)) {
+      const buffer = await fs.readFile(filePath);
+      const recovered =
+        extension === 'odt' || extension === 'epub'
+          ? await require('./roundtrip.cjs').recover(buffer)
+          : null;
+      const layoutImport =
+        !recovered && extension === 'odt'
+          ? await require('./odt-layout.cjs').prepare(buffer)
+          : null;
+      const html = recovered
+        ? null
+        : await require('./converters.cjs').convert(
+            layoutImport?.buffer || buffer,
+            extension,
+            'html',
+            path.basename(filePath),
+          );
+      document =
+        recovered ||
+        validateDocument(
+          await require('./formats.cjs').importFile(html, 'html', path.basename(filePath)),
+        );
+      if (layoutImport) {
+        document.content = require('./docx-layout.cjs').restore(
+          document.content,
+          layoutImport.tokens,
+        );
+        if (layoutImport.page) document.page = layoutImport.page;
+      }
+      if (!recovered)
+        document.importWarnings = [
+          'Semantischer Import: Seitenlayout, Kopf-/Fußzeilen, Noten und Kommentare können vereinfacht werden. Bitte prüfe das Ergebnis.',
+        ];
+    } else
+      document = validateDocument(
+        await require('./formats.cjs').importFile(
+          await fs.readFile(filePath),
+          extension,
+          path.basename(filePath),
+        ),
+      );
     if (extension === 'writely') writablePaths.add(path.resolve(filePath));
-    await library.put(document,filePath);
+    await library.put(document, filePath);
     return { path: filePath, document };
   });
   handle('save', async (document, requestedPath) => {
     validateDocument(document);
     let filePath;
-    if (typeof requestedPath === 'string' && path.extname(requestedPath).toLowerCase() === '.writely' && writablePaths.has(path.resolve(requestedPath))) filePath = requestedPath;
+    if (
+      typeof requestedPath === 'string' &&
+      path.extname(requestedPath).toLowerCase() === '.writely' &&
+      writablePaths.has(path.resolve(requestedPath))
+    )
+      filePath = requestedPath;
     else {
-      const result = await dialog.showSaveDialog(mainWindow, { title: 'Writely-Dokument speichern', defaultPath: `${documentName(document)}.writely`, filters: [{ name: 'Writely-Dokument', extensions: ['writely'] }] });
+      const result = await dialog.showSaveDialog(mainWindow, {
+        title: 'Writely-Dokument speichern',
+        defaultPath: `${documentName(document)}.writely`,
+        filters: [{ name: 'Writely-Dokument', extensions: ['writely'] }],
+      });
       if (result.canceled || !result.filePath) return null;
-      filePath = result.filePath.toLowerCase().endsWith('.writely') ? result.filePath : `${result.filePath}.writely`;
+      filePath = result.filePath.toLowerCase().endsWith('.writely')
+        ? result.filePath
+        : `${result.filePath}.writely`;
       writablePaths.add(path.resolve(filePath));
     }
     await store.save(document, filePath);
-    await library.put(document,filePath);
+    await library.put(document, filePath);
     return { path: filePath };
   });
   handle('recover', () => store.recover());
-  handle('autosave', async document => {await store.autosave(validateDocument(document));await library.put(document);});
-  handle('versions', () => store.versions());
-  handle('restore-version', id => store.restoreVersion(id));
+  handle('autosave', async (document) => {
+    await store.autosave(validateDocument(document));
+    await library.put(document);
+  });
+  handle('versions', (documentId) => store.versions(documentId));
+  handle('preview-version', (id, documentId) => store.previewVersion(id, documentId));
+  handle('restore-version', (id, documentId) => store.restoreVersion(id, documentId));
   handle('export', async (format, document, html) => {
     validateDocument(document);
-    const names = { docx: 'Word-Dokument', pdf: 'PDF-Dokument', html: 'HTML-Dokument', txt: 'Textdatei', md: 'Markdown', odt:'OpenDocument',rtf:'Rich Text',epub:'E-Book' };
-    if (!Object.hasOwn(names, format)) throw new Error('Dieses Dateiformat wird in dieser Vorabversion noch nicht unterstützt.');
-    const result = await dialog.showSaveDialog(mainWindow, { title: `Als ${names[format]} exportieren`, defaultPath: `${documentName(document)}.${format}`, filters: [{ name: names[format], extensions: [format] }] });
+    const names = {
+      docx: 'Word-Dokument',
+      pdf: 'PDF-Dokument',
+      html: 'HTML-Dokument',
+      txt: 'Textdatei',
+      md: 'Markdown',
+      odt: 'OpenDocument',
+      rtf: 'Rich Text',
+      epub: 'E-Book',
+    };
+    if (!Object.hasOwn(names, format))
+      throw new Error('Dieses Dateiformat wird in dieser Vorabversion noch nicht unterstützt.');
+    const warnings = require('./document-schema.mjs').exportWarnings(document, format);
+    if (warnings.length) {
+      const answer = await dialog.showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Hinweise zum Export',
+        message: warnings.join('\n\n'),
+        buttons: ['Abbrechen', 'Mit diesen Einschränkungen exportieren'],
+        defaultId: 0,
+        cancelId: 0,
+      });
+      if (answer.response !== 1) return null;
+    }
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: `Als ${names[format]} exportieren`,
+      defaultPath: `${documentName(document)}.${format}`,
+      filters: [{ name: names[format], extensions: [format] }],
+    });
     if (result.canceled || !result.filePath) return null;
-    const filePath = result.filePath.toLowerCase().endsWith(`.${format}`) ? result.filePath : `${result.filePath}.${format}`;
-    let resultBuffer = format==='odt'?await require('./odt.cjs').exportOdt(document):['rtf','epub'].includes(format) ? await require('./converters.cjs').convert(Buffer.from(require('./formats.cjs').exportText(document,'html')),'html',format,document.title) : format === 'pdf' ? await exportPDF(document, html||require('./formats.cjs').exportText(document,'html')) : await require('./formats.cjs').exportDocument(format, document, html);
-    if(format==='odt'||format==='epub')resultBuffer=await require('./roundtrip.cjs').attach(resultBuffer,document);
+    const filePath = result.filePath.toLowerCase().endsWith(`.${format}`)
+      ? result.filePath
+      : `${result.filePath}.${format}`;
+    let resultBuffer =
+      format === 'odt'
+        ? await require('./odt.cjs').exportOdt(document)
+        : ['rtf', 'epub'].includes(format)
+          ? await require('./converters.cjs').convert(
+              Buffer.from(require('./formats.cjs').exportText(document, 'html')),
+              'html',
+              format,
+              document.title,
+              { language: document.proofing?.language },
+            )
+          : format === 'pdf'
+            ? await exportPDF(
+                document,
+                html || require('./formats.cjs').exportText(document, 'html'),
+              )
+            : await require('./formats.cjs').exportDocument(format, document, html);
+    if (format === 'odt' || format === 'epub')
+      resultBuffer = await require('./roundtrip.cjs').attach(resultBuffer, document);
     await atomicWrite(filePath, resultBuffer);
     return { path: filePath };
   });
@@ -177,59 +530,148 @@ function registerBridge() {
     try {
       const fontList = require('font-list');
       const fonts = await fontList.getFonts({ disableQuoting: true });
-      return [...new Set(fonts.filter(name => typeof name === 'string' && name.length < 200))].sort((a, b) => a.localeCompare(b));
-    } catch { return ['Arial', 'Calibri', 'Cambria', 'Consolas', 'Georgia', 'Segoe UI', 'Times New Roman', 'Verdana', 'Tahoma', 'Trebuchet MS', 'Courier New', 'Impact']; }
+      return [
+        ...new Set(fonts.filter((name) => typeof name === 'string' && name.length < 200)),
+      ].sort((a, b) => a.localeCompare(b));
+    } catch {
+      return [
+        'Arial',
+        'Calibri',
+        'Cambria',
+        'Consolas',
+        'Georgia',
+        'Segoe UI',
+        'Times New Roman',
+        'Verdana',
+        'Tahoma',
+        'Trebuchet MS',
+        'Courier New',
+        'Impact',
+      ];
+    }
   });
-  for (const action of ['minimize', 'maximize', 'close']) ipcMain.on(`writely:${action}`, event => {
-    if (!isMainFrame(event)) return;
-    if (action === 'minimize') mainWindow.minimize();
-    if (action === 'maximize') windowSettings.setMode(mainWindow.isMaximized()||mainWindow.isFullScreen()?'windowed':'maximized').catch(()=>{});
-    if (action === 'close') mainWindow.close();
-  });
+  for (const action of ['minimize', 'maximize', 'close'])
+    ipcMain.on(`writely:${action}`, (event) => {
+      if (!isMainFrame(event)) return;
+      if (action === 'minimize') mainWindow.minimize();
+      if (action === 'maximize')
+        windowSettings
+          .setMode(mainWindow.isMaximized() || mainWindow.isFullScreen() ? 'windowed' : 'maximized')
+          .catch(() => {});
+      if (action === 'close') mainWindow.close();
+    });
 }
 
 function lockNetwork() {
   session.defaultSession.webRequest.onBeforeRequest((details, callback) => {
     let allowed = details.url.startsWith('data:') || details.url.startsWith('blob:');
     if (details.url.startsWith('file:')) {
-      try { const relative = path.relative(APP_DIRECTORY, fileURLToPath(details.url)); allowed = relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative); } catch { allowed = false; }
+      try {
+        const relative = path.relative(APP_DIRECTORY, fileURLToPath(details.url));
+        allowed =
+          relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative);
+      } catch {
+        allowed = false;
+      }
     }
-    if (devURL) { try { allowed ||= new URL(details.url).origin === new URL(devURL).origin; } catch {} }
+    if (devURL) {
+      try {
+        allowed ||= new URL(details.url).origin === new URL(devURL).origin;
+      } catch {}
+    }
     callback({ cancel: !allowed });
   });
-  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
+  session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) =>
+    callback(false),
+  );
   session.defaultSession.setPermissionCheckHandler(() => false);
-  session.defaultSession.on('will-download', event => event.preventDefault());
+  session.defaultSession.on('will-download', (event) => event.preventDefault());
 }
 
 async function createWindow() {
-  windowSettings=new (require('./window-settings.cjs').WindowSettings)(path.join(app.getPath('userData'),'window-settings.json'),screen);
-  const bounds=await windowSettings.load();
-  mainWindow = new BrowserWindow({ ...bounds, minWidth: Math.min(960,bounds.width), minHeight:Math.min(640,bounds.height), resizable:true, movable:true, show: false, frame: true, icon:path.join(APP_DIRECTORY,'writely.png'), title: 'Writely', backgroundColor: '#f5f4f8', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: true } });
-  windowSettings.changed=info=>{if(!mainWindow.isDestroyed())mainWindow.webContents.send('writely:window-changed',info);};
+  windowSettings = new (require('./window-settings.cjs').WindowSettings)(
+    path.join(app.getPath('userData'), 'window-settings.json'),
+    screen,
+  );
+  const bounds = await windowSettings.load();
+  mainWindow = new BrowserWindow({
+    ...bounds,
+    minWidth: Math.min(960, bounds.width),
+    minHeight: Math.min(640, bounds.height),
+    resizable: true,
+    movable: true,
+    show: false,
+    frame: true,
+    icon: path.join(APP_DIRECTORY, 'writely.png'),
+    title: 'Writely',
+    backgroundColor: '#f5f4f8',
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      sandbox: true,
+      contextIsolation: true,
+      nodeIntegration: false,
+      webSecurity: true,
+      spellcheck: false,
+    },
+  });
+  windowSettings.changed = (info) => {
+    if (!mainWindow.isDestroyed()) mainWindow.webContents.send('writely:window-changed', info);
+  };
   windowSettings.attach(mainWindow);
-  mainWindow.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&((input.key==='Escape'&&mainWindow.isFullScreen())||(input.key==='F11'&&input.control&&input.shift))){event.preventDefault();windowSettings.setMode('windowed').catch(()=>{});}});
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if (
+      input.type === 'keyDown' &&
+      ((input.key === 'Escape' && mainWindow.isFullScreen()) ||
+        (input.key === 'F11' && input.control && input.shift))
+    ) {
+      event.preventDefault();
+      windowSettings.setMode('windowed').catch(() => {});
+    }
+  });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
-  mainWindow.webContents.on('will-navigate', event => event.preventDefault());
-  mainWindow.once('ready-to-show', () => {mainWindow.show();windowSettings.setMode(windowSettings.state.mode).catch(()=>{});});
-  mainWindow.on('close', event => {
+  mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show();
+    windowSettings.setMode(windowSettings.state.mode).catch(() => {});
+  });
+  mainWindow.on('close', (event) => {
     if (closing) return;
     event.preventDefault();
     if (closePending) return;
     closePending = true;
     (async () => {
-      const document = await new Promise(resolve => {
+      const document = await new Promise((resolve) => {
         const token = `${Date.now()}-${Math.random()}`;
-        const timeout = setTimeout(() => { if (pendingFlush?.token === token) { pendingFlush = undefined; resolve(null); } }, 2000);
-        pendingFlush = { token, resolve: value => { clearTimeout(timeout); resolve(value); } };
+        const timeout = setTimeout(() => {
+          if (pendingFlush?.token === token) {
+            pendingFlush = undefined;
+            resolve(null);
+          }
+        }, 2000);
+        pendingFlush = {
+          token,
+          resolve: (value) => {
+            clearTimeout(timeout);
+            resolve(value);
+          },
+        };
         mainWindow.webContents.send('writely:flush', token);
       });
-      if (document) {await store.autosave(document);await library.put(document);}
+      if (document) {
+        await store.autosave(document);
+        await library.put(document);
+      }
       await store.flush();
       await windowSettings.queue;
       closing = true;
       if (!mainWindow.isDestroyed()) mainWindow.close();
-    })().catch(error => { closePending = false; dialog.showErrorBox('Writely konnte deine letzten Änderungen nicht sichern', germanError(error)); });
+    })().catch((error) => {
+      closePending = false;
+      dialog.showErrorBox(
+        'Writely konnte deine letzten Änderungen nicht sichern',
+        germanError(error),
+      );
+    });
   });
   if (devURL) await mainWindow.loadURL(devURL);
   else await mainWindow.loadURL(pathToFileURL(path.join(APP_DIRECTORY, 'index.html')).href);
@@ -237,20 +679,44 @@ async function createWindow() {
 
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
-  app.on('second-instance', () => { if (mainWindow) { if (mainWindow.isMinimized()) mainWindow.restore(); mainWindow.focus(); } });
-  app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null);
-    store = new LocalStore(path.join(app.getPath('userData'), 'local-documents'));
-    library=new (require('./library.cjs').Library)(path.join(app.getPath('userData'),'library'));
-    lockNetwork();
-    registerBridge();
-    await createWindow();
-  }).catch(error => { dialog.showErrorBox('Writely konnte nicht gestartet werden', germanError(error)); app.quit(); });
+  app.on('second-instance', () => {
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+  app
+    .whenReady()
+    .then(async () => {
+      Menu.setApplicationMenu(null);
+      store = new LocalStore(path.join(app.getPath('userData'), 'local-documents'));
+      library = new (require('./library.cjs').Library)(
+        path.join(app.getPath('userData'), 'library'),
+      );
+      const dictionaryRoot = app.isPackaged
+        ? path.join(process.resourcesPath, '..', 'dictionaries')
+        : path.resolve(__dirname, '../dictionaries');
+      proofing = new (require('./proofing.cjs').Proofing)(
+        path.join(app.getPath('userData'), 'personal-dictionary.json'),
+        dictionaryRoot,
+      );
+      await library.initialize();
+      await store
+        .loadSettings()
+        .catch((error) => dialog.showErrorBox('Sicherungseinstellungen', germanError(error)));
+      lockNetwork();
+      registerBridge();
+      await createWindow();
+    })
+    .catch((error) => {
+      dialog.showErrorBox('Writely konnte nicht gestartet werden', germanError(error));
+      app.quit();
+    });
   app.on('window-all-closed', () => app.quit());
-  app.on('before-quit', event => {
+  app.on('before-quit', (event) => {
     if (isQuitting || !store) return;
     event.preventDefault();
     isQuitting = true;
-    store.flush().finally(() => app.quit());
+    Promise.all([store.flush(), proofing?.close()]).finally(() => app.quit());
   });
 }

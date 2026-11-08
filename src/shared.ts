@@ -26,8 +26,9 @@ export interface FontReference {
 export interface PageLayout { size:'A4'|'A5'|'A3'|'Letter'|'Legal'|'Tabloid'|'Executive'|'Custom';marginMm:number;widthMm?:number;heightMm?:number;orientation?:'portrait'|'landscape';unit?:'mm'|'cm'|'in'|'pt';margins?:{top:number;right:number;bottom:number;left:number};gutterMm?:number;mirrored?:boolean;columns?:number;columnGapMm?:number;columnRule?:boolean;background?:string;backgroundRaster?:string;border?:boolean;watermark?:string;watermarkRaster?:string;header?:string;footer?:string;numbering?:{enabled:boolean;start:number;restart?:boolean;position:'header'|'footer';format:'arabic'|'roman'|'letters';total:boolean;firstDifferent:boolean}; }
 
 export interface DocumentFile {
-  schemaVersion: 1;
+  schemaVersion: 1|2;
   theme?: string;
+  proofing?:{language:'de-DE'|'en-US';enabled:boolean};
   id: string;
   title: string;
   createdAt: string;
@@ -39,7 +40,8 @@ export interface DocumentFile {
   importWarnings?: string[];
 }
 
-export interface VersionInfo { id: string; title: string; updatedAt: string }
+export interface VersionInfo { id: string; title: string; updatedAt: string;documentId?:string;capturedAt?:string;size?:number }
+export interface HistorySettings {historyLimit:number;intervalMinutes:number;maxMegabytes:number}
 export type ExportFormat = 'docx' | 'pdf' | 'html' | 'txt' | 'md' | 'odt' | 'rtf' | 'epub';
 export interface WindowPreferences { mode:'windowed'|'maximized'|'fullscreen';displayId:number;displays:{id:number;label:string}[]; }
 export interface DesktopBridge {
@@ -48,6 +50,10 @@ export interface DesktopBridge {
   getWindowSettings?():Promise<WindowPreferences>;
   setWindowMode?(mode:WindowPreferences['mode']):Promise<WindowPreferences>;
   moveWindowToDisplay?(id:number):Promise<WindowPreferences>;
+  spellCheck?(language:string,words:string[]):Promise<string[]>;
+  spellSuggest?(language:string,word:string):Promise<string[]>;
+  dictionaryWords?(language:string):Promise<string[]>;
+  dictionaryChange?(language:string,word:string,remove:boolean):Promise<string[]>;
   platform: string;
   launchOpen?():Promise<{document:DocumentFile;path?:string}|null>;
   libraryList?():Promise<any>;
@@ -58,8 +64,14 @@ export interface DesktopBridge {
   save(document: DocumentFile, path?: string): Promise<{ path: string } | null>;
   recover(): Promise<DocumentFile | null>;
   autosave(document: DocumentFile): Promise<void>;
-  versions(): Promise<VersionInfo[]>;
-  restoreVersion(id: string): Promise<DocumentFile>;
+  versions(documentId?:string): Promise<VersionInfo[]>;
+  restoreVersion(id: string,documentId?:string): Promise<DocumentFile>;
+  previewVersion?(id:string,documentId:string):Promise<DocumentFile>;
+  librarySearch?(query:string):Promise<{id:string;title:string;snippet:string;folderId:string|null}[]>;
+  exportBackup?():Promise<{path:string}|null>;
+  importBackup?():Promise<{documents:number;folders:number}|null>;
+  historySettings?():Promise<HistorySettings>;
+  configureHistory?(value:HistorySettings):Promise<HistorySettings>;
   clipboardImage?():Promise<string>;
   captureScreenshot?():Promise<string|null>;
   previewDocument?(document:DocumentFile):Promise<void>;

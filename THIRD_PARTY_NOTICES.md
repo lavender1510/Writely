@@ -50,3 +50,7 @@ Paketlizenzangaben wurden aus den tatsächlich installierten `package.json`-Date
 ## Pandoc 3.13
 
 Pandoc wird als separates lokales Programm aufgerufen und im Windows-Paket mitgeliefert. Lizenz: GNU GPL, Version 2 oder später, siehe `tools/COPYING.md`. Der korrespondierende Quellcode liegt als `tools/pandoc-source.tar.gz` bei. Herkunft: https://github.com/jgm/pandoc/releases/tag/3.13 . Die App benötigt zur Nutzung keine Verbindung zu diesem Dienst.
+
+## Offline-Rechtschreibung (0.4)
+
+nspell 2.1.5: MIT. Die Wörterbuchdaten sind getrennte, unverändert mitgelieferte lokale Datenbestände: Deutsch aus `dictionary-de` 3.0.0 / igerman98 20161207 (GPL-2.0 oder GPL-3.0), Englisch aus `dictionary-en` 4.0.0 (MIT und BSD). Original-Lizenz- und Copyrighttexte liegen jeweils unter `dictionaries/<Sprache>/license`. Für Deutsch liegen beide GPL-Volltexte unter `licenses/`; der ursprüngliche korrespondierende igerman98-Quellcode wird unter `dictionaries/de-DE/igerman98-20161207.tar.bz2` mitgeliefert. Die `.aff`-/`.dic`-Dateien und Paket-Readmes werden ebenfalls unverändert ausgeliefert. Herkunft und Grenzen: [Wörterbuchhinweise](dictionaries/README.md).

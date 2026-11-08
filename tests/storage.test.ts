@@ -21,8 +21,8 @@ test('atomic saving preserves German Unicode and a recoverable document', async 
   const target = path.join(directory, 'Mein Dokument.writely');
   const value = document();
   await store.save(value, target);
-  assert.deepEqual(await readDocument(target), value);
-  assert.deepEqual(await store.recover(), value);
+  assert.deepEqual(await readDocument(target), {...value,schemaVersion:2,proofing:{language:'de-DE',enabled:true}});
+  assert.deepEqual(await store.recover(), {...value,schemaVersion:2,proofing:{language:'de-DE',enabled:true}});
   assert.ok((await readFile(target, 'utf8')).includes('Grüße'));
   assert.equal((await readdir(directory)).some((name: string) => name.endsWith('.tmp')), false);
 });
@@ -52,7 +52,7 @@ test('version history is bounded, restorable and rejects traversal', async t => 
 });
 
 test('validation rejects incompatible versions, malformed layout and prototype pollution', () => {
-  assert.throws(() => validateDocument({ ...document(), schemaVersion: 2 }), /Dateiversion/);
+  assert.throws(() => validateDocument({ ...document(), schemaVersion: 3 }), /Dateiversion/);
   assert.throws(() => validateDocument({ ...document(), page: { size: 'A4', marginMm: -5 } }), /Seiteneinstellungen/);
   const polluted = JSON.parse(JSON.stringify(document()).replace('"styles":{}', '"styles":{"__proto__":{"polluted":true}}'));
   assert.throws(() => validateDocument(polluted), /Schlüssel/);

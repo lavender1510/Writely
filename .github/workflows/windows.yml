@@ -12,7 +12,7 @@ permissions:
 jobs:
   windows:
     runs-on: windows-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -25,12 +25,19 @@ jobs:
       - run: npm test
         env:
           WRITELY_PANDOC: ${{ github.workspace }}\.tools\pandoc.exe
+      - run: npx playwright install chromium
+      - name: Test production UI in Chromium
+        run: npm run test:e2e
       - name: Test real Windows desktop
         env:
           WRITELY_PANDOC: ${{ github.workspace }}\.tools\pandoc.exe
         run: npm run test:desktop
       - name: Package Windows x64
         run: npm exec electron-builder -- --win zip nsis --x64 --publish never
+      - name: Test packaged Windows application
+        env:
+          ELECTRON_PATH: ${{ github.workspace }}\release\win-unpacked\Writely.exe
+        run: npm run test:desktop
       - uses: actions/upload-artifact@v4
         with:
           name: Writely-Windows-x64
@@ -47,3 +54,5 @@ jobs:
             work/desktop-smoke/document.pdf
             work/desktop-smoke/preview.png
             work/desktop-smoke/mixed-layout.pdf
+            work/desktop-smoke/references.pdf
+            work/desktop-smoke/references.odt
