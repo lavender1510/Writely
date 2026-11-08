@@ -52,8 +52,10 @@ Beim Tippen wird nicht neu paginiert. Seitenbereiche werden bei sichtbarer Leist
 | P0 | DOCX/ODT-Geometrie, gemischte PDF-Seiten, Vorschau | In 0.3; XML-/Import-/Desktoptests; visuelle externe Office-Abnahme ausbauen |
 | P1 | Tabellen-/Bildwerkzeuge, einfache Grafiken | In 0.3; Browseraktionen und Exportgrundlagen; Bewegung verbundener Zellen begrenzt |
 | P1 | Automatisch paginierter Editor und echte Seitenminiaturen | Offen: inkrementelles Layout, Textposition-zu-Seite-Mapping, Virtualisierung, Hundertseiten-Benchmark |
-| P1 | Noten, Lesezeichen, Felder, automatische Verzeichnisse | Offen: semantische IDs/Knoten, Referenzauflösung, Nummerierung, Adapter und Undo-Tests |
+| P1 | Noten und Verzeichnisse | Noten und dynamisches TOC in 0.4 umgesetzt; Lesezeichen-UI, Querverweise und geprüfte TOC-Seitenzahlen bleiben offen |
 | P2 | Freie Vektorobjekte, Formeln, Guides, Ebenen/Gruppen | Offen: getrennte Objekt-/Ankerstruktur und Transformationen; Bearbeitungs-/Exporttests |
 | P2 | Vollständiger Kompatibilitätskorpus und Druckabnahme | Offen: Word/LibreOffice/EPUBCheck, Screenshotvergleiche, große Tabellen, lange Noten, gemischte Abschnitte |
 
 Nächster Ausbau: P1-Pagination und Referenzen getrennt liefern, danach freie Objekte. Bestehende Versionen, Ordner und Fensterpräferenzen behalten ihren Speicherpfad.
+
+Aktueller Fortschritt: [Produktivitäts- und Qualitätsupdate 0.4](UPDATE-0.4.md).

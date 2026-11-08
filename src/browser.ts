@@ -1,4 +1,5 @@
 import { marked } from 'marked';
+import {references,tocHTML,noteHTML,notesHTML,exportWarnings,migrateDocument} from '../electron/document-schema.mjs';
 import {validateLayout} from '../electron/layout.mjs';
 import { createDocument, documentText, styleSheet } from './document';
 import type { DesktopBridge, DocumentFile, ExportFormat, JSONContent, VersionInfo } from './shared';
@@ -10,7 +11,7 @@ const MAX_BYTES = 20 * 1024 * 1024;
 function validDocument(value: unknown): DocumentFile {
   const doc = value as DocumentFile;
   const object = (item: unknown): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item);
-  if (!doc || doc.schemaVersion !== 1 || typeof doc.id !== 'string' || !doc.id || doc.id.length > 128 || typeof doc.title !== 'string' || doc.title.length > 500 || !doc.content || doc.content.type !== 'doc' || !Array.isArray(doc.content.content) || !object(doc.styles) || !doc.page || !Array.isArray(doc.fonts)) throw new Error('Die Datei ist kein gültiges Writely-Dokument oder verwendet eine neuere Formatversion.');
+  if (!doc || ![1,2].includes(doc.schemaVersion) || typeof doc.id !== 'string' || !doc.id || doc.id.length > 128 || typeof doc.title !== 'string' || doc.title.length > 500 || !doc.content || doc.content.type !== 'doc' || !Array.isArray(doc.content.content) || !object(doc.styles) || !doc.page || !Array.isArray(doc.fonts)) throw new Error('Die Datei ist kein gültiges Writely-Dokument oder verwendet eine neuere Formatversion.');
   if (![doc.createdAt, doc.updatedAt].every(date => typeof date === 'string' && Number.isFinite(Date.parse(date)))) throw new Error('Die Writely-Datei enthält ungültige Zeitstempel.');
   for (const style of Object.values(doc.styles)) {
     if (!object(style) || (style.fontFamily !== undefined && typeof style.fontFamily !== 'string') || (style.fontSize !== undefined && (typeof style.fontSize !== 'number' || !Number.isFinite(style.fontSize))) || (style.basedOn !== undefined && typeof style.basedOn !== 'string')) throw new Error('Die Writely-Datei enthält eine ungültige Formatvorlage.');
@@ -27,7 +28,7 @@ function validDocument(value: unknown): DocumentFile {
     node.content?.forEach(child => walk(child, depth + 1));
   };
   walk(doc.content, 0);
-  return doc;
+  return migrateDocument(doc);
 }
 
 function readRecovery(): DocumentFile | null {
@@ -37,7 +38,7 @@ function readRecovery(): DocumentFile | null {
   catch { throw new Error('Der lokale Wiederherstellungsstand konnte nicht gelesen werden. Er bleibt zur Prüfung erhalten. Öffne eine gespeicherte Dokumentdatei.'); }
 }
 
-type SavedVersion = VersionInfo & { document: DocumentFile; capturedAt?: number };
+type SavedVersion = Omit<VersionInfo,'capturedAt'> & { document: DocumentFile; capturedAt?: number };
 function readVersions(): SavedVersion[] {
   const raw = localStorage.getItem(VERSIONS_KEY);
   if (!raw) return [];
@@ -59,7 +60,7 @@ function rememberVersion(document: DocumentFile) {
   // the user selected just because a fresh recovery was written in the meantime.
   if (versions[0]?.document.id === document.id && JSON.stringify(versions[0].document) === JSON.stringify(document)) return;
   versions.unshift({ id: crypto.randomUUID(), title: document.title, updatedAt: document.updatedAt, capturedAt: Date.now(), document: structuredClone(document) });
-  try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.slice(0, 30))); }
+  try { localStorage.setItem(VERSIONS_KEY, JSON.stringify(versions.filter((v,i)=>versions.slice(0,i).filter(item=>item.document.id===v.document.id).length<30))); }
   catch { throw new Error('Die lokale Versionshistorie konnte nicht gesichert werden. Der Browser-Speicher ist möglicherweise voll. Speichere dein Dokument als Datei, bevor du wechselst.'); }
 }
 
@@ -71,6 +72,8 @@ function download(value: string | Blob, name: string, type = 'text/plain;charset
 
 const escape = (value: string) => value.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]!);
 function nodeHtml(node: JSONContent): string {
+  if(node.type==='note')return `[${node.attrs?.kind==='endnote'?'Endnote':'Fußnote'}: ${String(node.attrs?.text||'')}]`;
+  if(node.type==='toc')return escape(node.attrs?.title||'Inhaltsverzeichnis');
   if (node.type === 'text') {
     let value = escape(node.text ?? '');
     for (const mark of node.marks ?? []) {
@@ -91,6 +94,8 @@ function nodeHtml(node: JSONContent): string {
 }
 
 function nodeMarkdown(node: JSONContent, depth = 0): string {
+  if(node.type==='note')return `[^${node.attrs?.id}]`;
+  if(node.type==='toc')return `## ${node.attrs?.title||'Inhaltsverzeichnis'}\n\n`;
   if (node.type === 'text') {
     let value = (node.text ?? '').replace(/([\\`*_{}\[\]<>])/g, '\\$1');
     for (const mark of node.marks ?? []) { if (mark.type === 'bold') value = `**${value}**`; if (mark.type === 'italic') value = `*${value}*`; if (mark.type === 'link' && /^(https?:|mailto:|#)/i.test(String(mark.attrs?.href ?? ''))) value = `[${value}](${String(mark.attrs?.href).replace(/[()\s]/g, encodeURIComponent)})`; }
@@ -189,13 +194,14 @@ const browserApi: DesktopBridge = {
     if (due) rememberVersion(doc);
     try { localStorage.setItem(RECOVERY_KEY, serialized); } catch { throw new Error('Der Browser-Speicher ist voll oder nicht verfügbar. Speichere dein Dokument mit Strg+S als Datei.'); }
   },
-  async versions() {
+  async versions(documentId) {
     const current = readRecovery();
     if (current) rememberVersion(current);
-    return readVersions().map(({ id, title, updatedAt }) => ({ id, title, updatedAt }));
+    return readVersions().filter(v=>!documentId||v.document.id===documentId).map(({ id, title, updatedAt,document,capturedAt }) => ({ id, title, updatedAt,documentId:document.id,capturedAt:capturedAt?new Date(capturedAt).toISOString():undefined }));
   },
-  async restoreVersion(id) {
-    const found = readVersions().find(version => version.id === id);
+  async previewVersion(id,documentId){const found=readVersions().find(v=>v.id===id&&v.document.id===documentId);if(!found)throw new Error('Diese Dokumentversion ist nicht verfügbar.');return structuredClone(found.document);},
+  async restoreVersion(id,documentId) {
+    const found = readVersions().find(version => version.id === id&&(!documentId||version.document.id===documentId));
     if (!found) throw new Error('Diese Dokumentversion ist nicht mehr verfügbar.');
     const result = structuredClone(validDocument(found.document));
     // Restoring an old version is also a document switch from a data-loss point
@@ -206,8 +212,10 @@ const browserApi: DesktopBridge = {
   },
   async exportFile(format: ExportFormat, doc, html) {
     if (['docx','pdf','odt','rtf','epub'].includes(format)) throw new Error(`Bitte nutze die Desktop-App für den ${format.toUpperCase()}-Export.`);
+    const warnings=exportWarnings(doc,format);if(warnings.length&&!window.confirm(warnings.join('\n\n')+'\n\nMit diesen Einschränkungen exportieren?'))return null;
+    let referenceHtml=html;if(html){referenceHtml=referenceHtml.replace(/<div[^>]*data-writely-toc="([^"]+)"[^>]*>[\s\S]*?<\/div>/g,(_all,id)=>{const node={attrs:{title:'Inhaltsverzeichnis',maxLevel:6}};return tocHTML(doc,node);}).replace(/<sup[^>]*data-note-id="([^"]+)"[^>]*>[\s\S]*?<\/sup>/g,(all,id)=>{const n=references(doc).notes.find((n:any)=>n.id===id);return n?noteHTML(doc,n.node):all;}).replace('</body>',notesHTML(doc)+'</body>');}
     const name = `${doc.title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') || 'Dokument'}.${format}`;
-    const result = format === 'html' ? html || `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escape(doc.title)}</title><style>${styleSheet(doc.styles)}</style></head><body><main class="tiptap">${nodeHtml(doc.content)}</main></body></html>` : format === 'md' ? nodeMarkdown(doc.content) : documentText(doc.content);
+    const result = format === 'html' ? referenceHtml || `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escape(doc.title)}</title><style>${styleSheet(doc.styles)}</style></head><body><main class="tiptap">${nodeHtml(doc.content)}</main></body></html>` : format === 'md' ? nodeMarkdown(doc.content)+references(doc).notes.map((n:any)=>`\n[^${n.id}]: ${n.text.replace(/\n/g,' ')}\n`).join('') : documentText(doc.content);
     download(result, name, format === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8');
     return { path: name };
   },

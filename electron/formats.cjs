@@ -1,6 +1,7 @@
+const {references,tocHTML,noteHTML,notesHTML}=require('./document-schema.mjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
-const { randomUUID } = require('node:crypto');
+const { randomUUID,createHash } = require('node:crypto');
 const sanitizeHtml = require('sanitize-html');
 const { parseDocument } = require('htmlparser2');
 const mammoth = require('mammoth');
@@ -31,7 +32,7 @@ function safeHtml(html) {
     allowedTags: tags,
     nonTextTags: ['script', 'style', 'textarea', 'option', 'head', 'title'],
     allowedAttributes: {
-      '*': ['style','class','data-writely-break', 'data-style-id', 'data-style'], a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'],
+      '*': ['id','style','class','data-writely-break', 'data-style-id', 'data-style'], a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'],
       td: ['colspan', 'rowspan'], th: ['colspan', 'rowspan'], ol: ['start'],
     },
     allowedSchemes: ['https', 'http', 'mailto'],
@@ -55,7 +56,7 @@ function safeHtml(html) {
 function makeDocument(content, title, warnings = []) {
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1, id: randomUUID(), title: title || 'Unbenannt', createdAt: now, updatedAt: now,
+    schemaVersion: 2, proofing:{language:'de-DE',enabled:true}, id: randomUUID(), title: title || 'Unbenannt', createdAt: now, updatedAt: now,
     content, styles: {}, page: { size: 'A4', marginMm: 20 }, fonts: [],
     ...(warnings.length ? { importWarnings: warnings } : {}),
   };
@@ -288,9 +289,11 @@ function contentHtml(node, document) {
   const css = [styleCss(resolveStyle(document, styleKey(node))), attrs.textAlign && `text-align:${attrs.textAlign}`].filter(Boolean).join(';');
   const idAttr = typeof attrs.styleId === 'string' && /^[a-zA-Z0-9_-]{1,100}$/.test(attrs.styleId) ? ` data-style-id="${escapeHtml(attrs.styleId)}"` : '';
   const align = `${css ? ` style="${escapeHtml(css)}"` : ''}${idAttr}`;
-  if (node.type === 'doc') return inner();
+  if (node.type === 'doc') return inner()+notesHTML(document);
+  if(node.type==='toc')return tocHTML(document,node);
+  if(node.type==='note')return noteHTML(document,node);
   if (node.type === 'paragraph') return `<p${align}>${inner() || '<br>'}</p>`;
-  if (node.type === 'heading') { const level = Math.min(6, Math.max(1, Number(attrs.level) || 1)); return `<h${level}${align}>${inner()}</h${level}>`; }
+  if (node.type === 'heading') { const level = Math.min(6, Math.max(1, Number(attrs.level) || 1)); const heading=references(document).headings.find(h=>h.node===node);return `<h${level} id="${escapeHtml(heading?.id||attrs.anchorId||'')}"${align}>${inner()}</h${level}>`; }
   const names = { bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', table: 'table', tableRow: 'tr', tableCell: 'td', tableHeader: 'th' };
   if (names[node.type]) {
     const span = ['tableCell', 'tableHeader'].includes(node.type) ? ` colspan="${Math.max(1, Number(attrs.colspan) || 1)}" rowspan="${Math.max(1, Number(attrs.rowspan) || 1)}"` : node.type === 'orderedList' ? ` start="${Math.max(1, Number(attrs.start) || 1)}"` : '';
@@ -307,6 +310,8 @@ function contentHtml(node, document) {
 function plainText(node) {
   if (!node) return '';
   if (node.type === 'text') return node.text || '';
+  if(node.type==='note')return ` [${node.attrs.kind==='footnote'?'Fußnote':'Endnote'}: ${node.attrs.text}] `;
+  if(node.type==='toc')return node.attrs.title+'\n';
   if (node.type === 'hardBreak') return '\n';
   if (node.type === 'image') return node.attrs?.alt ? `[${node.attrs.alt}]` : '';
   const separator = ['doc', 'bulletList', 'orderedList', 'table', 'tableCell', 'tableHeader', 'blockquote'].includes(node.type) ? '\n' : node.type === 'tableRow' ? '\t' : '';
@@ -337,6 +342,10 @@ function exportText(document, format) {
 async function exportDocx(document) {
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, AlignmentType, WidthType, LevelFormat } = docx;
   const numbering = [];
+  const referenceData=references(document);
+  const bookmarkName=id=>'w_'+createHash('sha256').update(String(id)).digest('hex').slice(0,32);
+  const footnotes=Object.fromEntries(referenceData.notes.filter(n=>n.kind==='footnote').map(n=>[n.number,{children:n.text.split('\n').map(line=>new Paragraph({children:[new TextRun({...runStyle(resolveStyle(document,'footnote')),text:line})]}))}]));
+  const endnotes=Object.fromEntries(referenceData.notes.filter(n=>n.kind==='endnote').map(n=>[n.number,{children:n.text.split('\n').map(line=>new Paragraph({children:[new TextRun({...runStyle(resolveStyle(document,'footnote')),text:line})]}))}]));
   let coverSeparatorPending=!!document.styles?.coverTitle;
   const customIds = Object.fromEntries(Object.keys(document.styles || {}).map(key => [key, `Writely_${Buffer.from(key).toString('base64url')}`]));
   function runStyle(style) {
@@ -353,6 +362,7 @@ async function exportDocx(document) {
   }
   function inline(nodes, inherited = {}) {
     return (nodes || []).flatMap(node => {
+      if(node.type==='note'){const note=referenceData.notes.find(n=>n.id===node.attrs.id);return note?[note.kind==='footnote'?new docx.FootnoteReferenceRun(note.number):new docx.EndnoteReferenceRun(note.number)]:[];}
       if (node.type === 'hardBreak') return [new TextRun({ break: 1 })];
       if (node.type !== 'text') return inline(node.content, inherited);
       const options = { ...inherited, text: node.text || '' };
@@ -388,6 +398,7 @@ async function exportDocx(document) {
         }
         return (node.content || []).flatMap(item => blocks(item.content, config, level + 1));
       }
+      if(node.type==='toc')return [new Paragraph({children:[new TextRun(node.attrs.title)]}),...referenceData.headings.filter(h=>h.level<=node.attrs.maxLevel).map(h=>new Paragraph({indent:{left:(h.level-1)*240},style:customIds.toc,children:[new docx.InternalHyperlink({anchor:bookmarkName(h.id),children:[new TextRun(h.text)]})]}))];
       if (node.type === 'table') return [new Table({...(tableWidths(node,activeLayout).length?{columnWidths:tableWidths(node,activeLayout).map(mm=>Math.round(mm/25.4*1440)),layout:docx.TableLayoutType.FIXED}:{}), width: { size: 100, type: WidthType.PERCENTAGE }, rows: (node.content || []).map((row,i) => new TableRow({tableHeader:i===0&&row.content?.some(c=>c.type==='tableHeader'), children: (row.content || []).map(cell => {
         const content = blocks(cell.content);
         return new TableCell({ children: content.length ? content : [new Paragraph('')], columnSpan: Number(cell.attrs?.colspan) || 1,rowSpan:Number(cell.attrs?.rowspan)||1, margins:{top:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),bottom:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),left:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),right:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440)},...(cell.attrs?.cellBorder?{borders:Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:cell.attrs.cellBorder==='none'?docx.BorderStyle.NONE:docx.BorderStyle.SINGLE,color:cell.attrs.cellBorder==='none'?'auto':cell.attrs.cellBorder.replace('#',''),size:6}]))}:{}), ...(cell.attrs?.background?{shading:{fill:cell.attrs.background.replace('#','')}}:cell.type === 'tableHeader' ? { shading: { fill: 'EEEAF8' } } : {}) });
@@ -417,7 +428,7 @@ async function exportDocx(document) {
       const isCustom = attrs.styleId && customIds[attrs.styleId] && !/^h[1-6]$/.test(attrs.styleId);
       const style = isCustom ? { style: customIds[attrs.styleId], ...(node.type === 'heading' ? { outlineLevel: headingLevel - 1 } : {}) } : node.type === 'heading' ? { heading: HeadingLevel[`HEADING_${headingLevel}`] } : {};
       const spacing = paragraphStyle(resolved).spacing || {};
-      const result = new Paragraph({ ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
+      const result = new Paragraph({ ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: node.type==='heading'?[new docx.Bookmark({id:bookmarkName(referenceData.headings.find(h=>h.node===node)?.id||attrs.anchorId),children:inline(node.content,runStyle(resolved))})]:inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
       // Number only the first paragraph in a list item, leaving subsequent blocks unnumbered.
       list = null;
       return [result];
@@ -444,6 +455,7 @@ async function exportDocx(document) {
       paragraphStyles: Object.entries(document.styles || {}).map(([key, style]) => ({ id: customIds[key], name: String(style.name || key), basedOn: customIds[style.basedOn] || 'Normal', run: runStyle(resolveStyle(document, key)), paragraph: paragraphStyle(resolveStyle(document, key)) })),
     },
     numbering: { config: numbering },
+    footnotes,endnotes,
     settings:{mirrorMargins:!!document.page.mirrored},
     sections: sectionOptions,
   });

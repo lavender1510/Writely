@@ -51,7 +51,7 @@ export function createDocument(template = 'welcome'): DocumentFile {
   const chosen = templates[template] ?? templates.welcome;
   const now = new Date().toISOString();
   return {
-    schemaVersion: 1, id: crypto.randomUUID(), title: chosen.title, createdAt: now, updatedAt: now,
+    schemaVersion: 2, proofing:{language:'de-DE',enabled:true}, id: crypto.randomUUID(), title: chosen.title, createdAt: now, updatedAt: now,
     content: { type: 'doc', content: chosen.content }, styles: structuredClone(DEFAULT_STYLES),
     page: { size: 'A4', marginMm: 20 },
     fonts: [{ family: 'Inter', source: 'bundled' }, { family: 'Source Serif 4', source: 'bundled' }],
@@ -60,6 +60,8 @@ export function createDocument(template = 'welcome'): DocumentFile {
 
 export function documentText(content: JSONContent): string {
   if (content.type === 'text') return content.text ?? '';
+  if(content.type==='toc')return content.attrs?.title||'Inhaltsverzeichnis';
+  if (content.type === 'note')return ` [${content.attrs?.kind==='endnote'?'Endnote':'Fußnote'}: ${content.attrs?.text||''}] `;
   if (content.type === 'hardBreak') return '\n';
   const children = (content.content ?? []).map(documentText);
   return children.join(['doc', 'bulletList', 'orderedList', 'listItem', 'table', 'tableRow', 'tableCell', 'tableHeader', 'blockquote'].includes(content.type ?? '') ? '\n' : '');
@@ -105,7 +107,7 @@ export function styleSheet(styles: Record<string, StyleDefinition>): string {
     return style ? { ...(style.basedOn ? resolve(style.basedOn, seen) : {}), ...style } : { name: key };
   };
   const selectors: Record<string, string> = { normal: '.tiptap', h1: '.tiptap h1', h2: '.tiptap h2', h3: '.tiptap h3', h4: '.tiptap h4', h5: '.tiptap h5', h6: '.tiptap h6', quote: '.tiptap blockquote', code: '.tiptap pre,.tiptap code' };
-  return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key))}}`).join('\n');
+  return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key))}}`).join('\n')+`\n.notes-list button{${cssProperties(resolve('footnote'))}}`;
 }
 
 export function resolveFont(requested: string, available: string[]): { family: string; substituted: boolean } {

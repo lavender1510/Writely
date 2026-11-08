@@ -103,7 +103,7 @@ test('named styles resolve inheritance in HTML and DOCX export without CSS injec
     malicious: { name: 'Malicious', fontFamily: 'bad;</style><script>evil()</script>', color: 'red;background:url(https://evil.example)' },
   };
   const html = exportText(file, 'html');
-  assert.match(html, /<h1 style="font-family:Source Serif 4;font-size:24pt;color:#543090;line-height:1.6">Titel<\/h1>/);
+  assert.match(html, /<h1 id="heading-1" style="font-family:Source Serif 4;font-size:24pt;color:#543090;line-height:1.6">Titel<\/h1>/);
   assert.match(html, /font-size:10pt;color:#444444/);
   assert.doesNotMatch(html, /<script>|evil\.example/);
   const roundtrip = await importFile(await exportDocx(file), 'docx', 'Styles.docx');

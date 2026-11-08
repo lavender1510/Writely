@@ -37,7 +37,7 @@ test('real editing, save download, local recovery and versions', async ({ page }
   expect(download.suggestedFilename()).toBe('Gedanken, die bleiben.writely');
   const savedPath = await download.path();
   const content = JSON.parse(await fs.readFile(savedPath!, 'utf8'));
-  expect(content.schemaVersion).toBe(1);
+  expect(content.schemaVersion).toBe(2);
   expect(JSON.stringify(content.content)).toContain('Prueftext mit Umlauten');
   await page.reload();
   await page.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();
@@ -70,7 +70,14 @@ test('switching documents immediately preserves the latest edit in local history
   await page.getByRole('dialog', { name: 'Neues Dokument' }).getByRole('button', { name: 'Leeres Dokument Platz für alles, was kommt.' }).click();
   await expect(page.getByLabel('Dokumenttitel')).toHaveValue('Unbenanntes Dokument');
   await page.getByRole('button', { name: 'Versionsverlauf', exact: true }).click();
-  await page.getByRole('dialog', { name: 'Versionsverlauf' }).locator('.versions-list button').filter({ hasText: 'Gedanken, die bleiben' }).first().click();
+  await expect(page.getByRole('dialog',{name:'Versionsverlauf'})).not.toContainText('Gedanken, die bleiben');
+  await page.getByRole('dialog',{name:'Versionsverlauf'}).getByRole('button',{name:'Schließen',exact:true}).click();
+  await page.getByRole('button',{name:'Zur Bibliothek'}).click();
+  await page.locator('.document-card').filter({hasText:'Gedanken, die bleiben'}).getByRole('button',{name:/WRITELY/}).first().click();
+  await page.getByRole('button', { name: 'Versionsverlauf', exact: true }).click();
+  await page.getByRole('dialog',{name:'Versionsverlauf'}).locator('.versions-list button').first().click();
+  await expect(page.getByLabel('Versionsvorschau')).toContainText('Letzter Gedanke vor dem Dokumentwechsel.');
+  await page.getByRole('button',{name:'Diese Version wiederherstellen'}).click();
   await expect(page.locator('.tiptap')).toContainText('Letzter Gedanke vor dem Dokumentwechsel.');
 });
 
@@ -91,7 +98,7 @@ test('shared style updates all headings, formatting and insertion work', async (
 
 test('search replaces text, focus and dark modes can be toggled', async ({ page }) => {
   await page.keyboard.press('Control+h');
-  const search = page.getByRole('dialog', { name: 'Suchen und Ersetzen' });
+  const search = page.getByRole('region', { name: 'Suchen und Ersetzen' });
   await search.getByLabel('Suchen', { exact: true }).fill('Gedanke');
   await search.getByLabel('Ersetzen durch').fill('Einfall');
   await search.getByRole('button', { name: 'Alle ersetzen' }).click();
@@ -108,7 +115,7 @@ test('search replaces text, focus and dark modes can be toggled', async ({ page 
 });
 
 test('HTML and TXT export real content, desktop-only PDF has a clear message', async ({ page }) => {
-  for (const [label, extension, expected] of [['HTML', 'html', '<h1>'], ['Einfacher Text', 'txt', 'Gute Ideen brauchen']] as const) {
+  for (const [label, extension, expected] of [['HTML', 'html', '<h1'], ['Einfacher Text', 'txt', 'Gute Ideen brauchen']] as const) {
     await page.getByRole('button', { name: 'Exportieren', exact: true }).click();
     const exportDialog = page.getByRole('dialog', { name: 'Exportieren' });
     const event = page.waitForEvent('download');
@@ -134,3 +141,11 @@ test('manual page breaks are distinct nodes and page sidebar duplicates without 
 test('table rows can be duplicated and undo restores the original table',async({page})=>{await page.getByRole('button',{name:'Einfügen',exact:true}).click();await page.locator('.ribbon').getByRole('button',{name:'Tabelle',exact:true}).click();await page.getByRole('button',{name:'Tabelle einfügen',exact:true}).click();await page.locator('.tiptap th').first().click();await page.getByRole('navigation',{name:'Hauptmenü'}).getByRole('button',{name:'Tabelle',exact:true}).click();await page.getByRole('button',{name:'Zeile duplizieren',exact:true}).click();await expect(page.locator('.tiptap tr')).toHaveCount(4);await page.keyboard.press('Control+z');await expect(page.locator('.tiptap tr')).toHaveCount(3);});
 
 test('graphic insertion and image transformations survive local recovery and undo',async({page})=>{await page.locator('.tiptap').focus();await page.keyboard.press('Control+End');await page.getByRole('button',{name:'Einfügen',exact:true}).click();await page.getByRole('button',{name:'Grafiken & Zeichen',exact:true}).click();await page.getByRole('dialog',{name:'Objekt einfügen'}).getByRole('button',{name:'Grafik',exact:true}).click();await page.getByLabel('Grafiktyp').selectOption('arrow');await page.getByRole('button',{name:'Grafik einfügen',exact:true}).click();const image=page.locator('.tiptap img').last();await image.click();await page.getByRole('button',{name:'Bild bearbeiten',exact:true}).click();const dialog=page.getByRole('dialog',{name:'Bild bearbeiten'});await dialog.getByLabel('Breite in Pixel').fill('320');await dialog.getByLabel('Drehen',{exact:true}).selectOption('90');await dialog.getByLabel('Alternativtext').fill('Gedrehter Pfeil');await dialog.getByRole('button',{name:'Bildänderungen anwenden'}).click();await expect(image).toHaveAttribute('alt','Gedrehter Pfeil');await expect(image).toHaveAttribute('height','320');await expect.poll(()=>page.evaluate(()=>localStorage.getItem('writely.recovery.v1'))).toContain('originalSrc');await page.keyboard.press('Control+z');await expect(image).not.toHaveAttribute('alt','Gedrehter Pfeil');});
+
+test('live search crosses marks, highlights, replaces a single hit and supports undo',async({page})=>{const editor=page.locator('.tiptap');const paragraph=editor.locator('p').first();await paragraph.fill('Hallo ');await paragraph.press('End');await page.getByRole('button',{name:'Fett (Strg+B)',exact:true}).click();await page.keyboard.insertText('Welt');await page.getByRole('button',{name:'Fett (Strg+B)',exact:true}).click();await expect(paragraph).toHaveText('Hallo Welt');await expect(paragraph.locator('strong')).toHaveText('Welt');await page.keyboard.press('Control+h');const panel=page.getByRole('region',{name:'Suchen und Ersetzen'});await panel.getByLabel('Suchen',{exact:true}).fill('lo We');await expect(panel.getByRole('status')).toHaveText('1 von 1');await expect.poll(async()=>(await editor.locator('.search-hit').allTextContents()).join('').replace(/[\u00a0\u202f]/g,' ')).toBe('lo We');await panel.getByLabel('Ersetzen durch').fill('X');await panel.getByRole('button',{name:'Treffer ersetzen',exact:true}).click();await expect(paragraph).toHaveText('HalXlt');await editor.focus();await page.keyboard.press('Control+z');await expect(paragraph).toHaveText('Hallo Welt');});
+
+test('problematic regex is terminated without freezing the editor',async({page})=>{await page.locator('.tiptap').fill('a'.repeat(40000)+'!');await page.keyboard.press('Control+f');const panel=page.getByRole('region',{name:'Suchen und Ersetzen'});await panel.getByLabel('Regulärer Ausdruck').check();await panel.getByLabel('Suchen',{exact:true}).fill('(a+)+$');await expect(panel.getByRole('alert')).toContainText('abgebrochen');await panel.getByRole('button',{name:'Suche schließen'}).click();await page.locator('.tiptap').focus();await page.keyboard.press('Control+End');await page.keyboard.insertText('Weiter');await expect(page.locator('.tiptap')).toContainText('Weiter');});
+
+test('trash restores documents and fulltext library search finds body contents',async({page})=>{await page.getByRole('button',{name:'Zur Bibliothek'}).click();await page.getByLabel('Bibliothek durchsuchen').fill('flüchtiger');await expect(page.locator('.document-card')).toHaveCount(1);await expect(page.locator('.search-snippet')).toContainText('flüchtiger');await page.getByLabel('Bibliothek durchsuchen').fill('');await page.getByRole('button',{name:'Gedanken, die bleiben verwalten'}).click();await page.getByRole('button',{name:'In den Papierkorb'}).click();await expect(page.locator('.document-card')).toHaveCount(0);await page.getByRole('button',{name:'Papierkorb',exact:true}).click();await expect(page.locator('.document-card')).toHaveCount(1);await page.locator('.document-card').getByRole('button',{name:'Wiederherstellen',exact:true}).click();await expect(page.locator('.document-card')).toHaveCount(0);await page.getByRole('button',{name:'Meine Dokumente',exact:true}).click();await expect(page.locator('.document-card')).toHaveCount(1);});
+
+test('dynamic TOC updates headings, footnotes renumber and survive recovery with undo',async({page})=>{await page.getByRole('button',{name:'Verweise',exact:true}).click();await page.getByRole('button',{name:'Inhaltsverzeichnis einfügen',exact:true}).click();const toc=page.getByRole('navigation',{name:'Dynamisches Inhaltsverzeichnis'});await expect(toc.getByRole('button')).toHaveCount(3);await page.locator('.tiptap h1').first().click();await page.keyboard.press('Home');await page.keyboard.insertText('Neu: ');await expect(toc).toContainText('Neu: Gute Ideen');await page.locator('.tiptap').focus();await page.keyboard.press('Control+End');await page.keyboard.press('Control+Alt+f');const dialog=page.getByRole('dialog',{name:'Note bearbeiten'});await dialog.getByRole('button',{name:'Schließen',exact:true}).focus();await page.keyboard.press('Shift+Tab');await expect(dialog.getByRole('button',{name:'Note übernehmen'})).toBeFocused();await page.keyboard.press('Tab');await expect(dialog.getByRole('button',{name:'Schließen',exact:true})).toBeFocused();await dialog.getByLabel('Notentext').fill('Fußnote mit Umlauten: ÄÖÜ ß.');await dialog.getByRole('button',{name:'Note übernehmen'}).click();await expect(page.locator('.note-reference')).toHaveAttribute('data-number','1');await expect(page.getByLabel('Dokumentnoten')).toContainText('Fußnote mit Umlauten');await expect.poll(()=>page.evaluate(()=>localStorage.getItem('writely.recovery.v1'))).toContain('Fußnote mit Umlauten');await page.keyboard.press('Control+z');await expect(page.locator('.note-reference')).toHaveCount(0);await page.keyboard.press('Control+y');await expect(page.locator('.note-reference')).toHaveCount(1);await page.reload();await page.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();await expect(page.getByLabel('Dokumentnoten')).toContainText('Fußnote mit Umlauten');});

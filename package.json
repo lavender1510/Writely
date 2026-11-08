@@ -1,6 +1,6 @@
 {
   "name": "writely",
-  "version": "0.3.0-alpha.1",
+  "version": "0.4.0-alpha.1",
   "description": "Writely – ein ruhiger Ort für gute Gedanken. Lokale Schreibapp für Windows.",
   "author": "Writely contributors",
   "private": true,
@@ -14,9 +14,12 @@
     "test:e2e": "playwright test",
     "package:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "package:dir": "npm run build && electron-builder --dir --publish never",
-    "test:desktop": "node scripts/desktop-smoke.cjs"
+    "test:desktop": "node scripts/desktop-smoke.cjs",
+    "pretest:e2e": "npm run build"
   },
   "dependencies": {
+    "dictionary-de": "^3.0.0",
+    "dictionary-en": "^4.0.0",
     "docx": "^9.5.1",
     "dom-serializer": "^2.0.0",
     "font-list": "^2.0.1",
@@ -24,6 +27,7 @@
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
     "marked": "^17.0.0",
+    "nspell": "^2.1.5",
     "pdf-lib": "^1.17.1",
     "sanitize-html": "^2.17.0",
     "turndown": "^7.2.2"
@@ -108,6 +112,10 @@
           "COPYING.md",
           "COPYRIGHT"
         ]
+      },
+      {
+        "from": "dictionaries",
+        "to": "dictionaries"
       }
     ],
     "nsis": {
@@ -126,6 +134,11 @@
         "role": "Editor",
         "icon": "public/writely.ico"
       }
+    ],
+    "asarUnpack": [
+      "electron/spell-worker.cjs",
+      "node_modules/nspell/**/*",
+      "node_modules/is-buffer/**/*"
     ]
   }
 }
