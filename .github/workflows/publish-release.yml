@@ -1,0 +1,84 @@
+name: Publish verified Windows release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing draft release tag
+        required: true
+        default: v0.1.0-alpha.1
+      run_id:
+        description: Successful Windows build run containing both artifacts
+        required: true
+        default: '42485001158'
+      source_sha:
+        description: Exact tested source commit
+        required: true
+        default: 25a7a62037b05ad68ab59588df10ff4639e4b5fd
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      BUILD_RUN_ID: ${{ inputs.run_id }}
+      SOURCE_SHA: ${{ inputs.source_sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.source_sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify successful build and matching draft
+        shell: bash
+        run: |
+          node --input-type=module <<'JS'
+          import { execFileSync } from 'node:child_process';
+          const { RELEASE_TAG: tag, BUILD_RUN_ID: run, SOURCE_SHA: sha, GITHUB_REPOSITORY: repo } = process.env;
+          if (!/^v\d+\.\d+\.\d+[-.\w]*$/.test(tag) || !/^\d+$/.test(run) || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid release parameters');
+          const get = path => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8' }));
+          const build = get(`repos/${repo}/actions/runs/${run}`);
+          if (build.conclusion !== 'success' || build.head_sha !== sha) throw new Error('Release requires a successful build of the exact commit');
+          const release = get(`repos/${repo}/releases/tags/${tag}`);
+          if (!release.draft || release.target_commitish !== sha) throw new Error('Expected the prepared draft for the tested commit');
+          JS
+      - uses: actions/download-artifact@v4
+        with:
+          name: Writely-Windows-x64
+          path: release-assets
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: Desktop-test-evidence
+          path: test-evidence
+          run-id: ${{ inputs.run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Prepare example, test evidence and checksums
+        shell: bash
+        run: |
+          node --experimental-strip-types --input-type=module <<'JS'
+          import { createDocument } from './src/document.ts';
+          import { writeFileSync, copyFileSync, readFileSync, readdirSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
+          const report = JSON.parse(readFileSync('test-evidence/report.json', 'utf8'));
+          if (report.platform !== 'win32-x64' || report.failure || report.pageErrors.length) throw new Error('Windows desktop evidence failed');
+          copyFileSync('test-evidence/report.json', 'release-assets/Writely-Testprotokoll-Windows.json');
+          writeFileSync('release-assets/Writely-Beispiel.writely', JSON.stringify(createDocument('welcome'), null, 2));
+          const files = readdirSync('release-assets').filter(name => name !== 'SHA256SUMS.txt').sort();
+          if (files.filter(name => name.endsWith('.zip')).length !== 1) throw new Error('Expected exactly one Windows ZIP');
+          const sums = files.map(name => `${createHash('sha256').update(readFileSync(`release-assets/${name}`)).digest('hex')}  ${name}`);
+          writeFileSync('release-assets/SHA256SUMS.txt', sums.join('\n') + '\n');
+          JS
+      - name: Upload assets and publish prerelease
+        shell: bash
+        run: |
+          gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
+          gh release edit "$RELEASE_TAG" --draft=false --prerelease --repo "$GITHUB_REPOSITORY"
