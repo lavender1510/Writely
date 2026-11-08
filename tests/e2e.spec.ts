@@ -3,6 +3,8 @@ import fs from 'node:fs/promises';
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/');
+  await page.getByRole('button',{name:'Vorlagen',exact:true}).click();
+  await page.getByRole('button',{name:/Writely kennenlernen/}).click();
   await expect(page.locator('.tiptap')).toBeVisible();
   await expect(page.locator('.tiptap')).toHaveAttribute('contenteditable', 'true');
   await expect(page.locator('.save-state')).not.toContainText('Wird gesichert');
@@ -12,6 +14,7 @@ test('editor loads, exposes a real outline, and has no page errors', async ({ pa
   const errors: string[] = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.reload();
+  await page.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();
   await expect(page.locator('.tiptap h1')).toHaveText('Gute Ideen brauchen einen Anfang.');
   await expect(page.locator('.outline-item')).toHaveCount(3);
   await expect(page.locator('.inspector')).toBeVisible();
@@ -37,6 +40,7 @@ test('real editing, save download, local recovery and versions', async ({ page }
   expect(content.schemaVersion).toBe(1);
   expect(JSON.stringify(content.content)).toContain('Prueftext mit Umlauten');
   await page.reload();
+  await page.getByRole('button',{name:/Deine letzte Sitzung wartet/}).click();
   await expect(page.locator('.tiptap')).toContainText('Prueftext mit Umlauten');
   await page.getByRole('button', { name: 'Versionsverlauf', exact: true }).click();
   await expect(page.getByRole('dialog', { name: 'Versionsverlauf' }).locator('.versions-list button').filter({ hasText: 'Gedanken, die bleiben' }).first()).toBeVisible();
@@ -117,3 +121,7 @@ test('HTML and TXT export real content, desktop-only PDF has a clear message', a
   await page.getByRole('dialog', { name: 'Exportieren' }).getByRole('button', { name: /PDF Zum Lesen/ }).click();
   await expect(page.getByRole('status')).toContainText('Bitte nutze die Desktop-App für den PDF-Export.');
 });
+
+test('home library creates nested folders, pins documents and searches titles',async({page})=>{await page.getByRole('button',{name:'Zur Bibliothek'}).click();await expect(page.locator('.library-shell')).toBeVisible();await page.getByRole('button',{name:'Ordner erstellen'}).click();await page.getByLabel('Name',{exact:true}).fill('Studium');await page.getByRole('button',{name:'Speichern',exact:true}).click();await expect(page.locator('.library-nav')).toContainText('Studium');await page.getByRole('button',{name:'Gedanken, die bleiben anheften'}).click();await page.getByRole('button',{name:'Angeheftet',exact:true}).click();await expect(page.locator('.document-card')).toHaveCount(1);await page.getByLabel('Bibliothek durchsuchen').fill('nicht vorhanden');await expect(page.locator('.document-card')).toHaveCount(0);});
+
+test('cover editor inserts editable title and theme changes global styles',async({page})=>{await page.getByRole('button',{name:'Gestalten',exact:true}).click();await page.getByLabel('Titel',{exact:true}).fill('Ein neuer Anfang');await page.getByLabel('Autor',{exact:true}).fill('Erika Muster');await page.getByRole('button',{name:'Als erste Seite einfügen'}).click();await expect(page.locator('.tiptap h1').first()).toHaveText('Ein neuer Anfang');await expect(page.locator('.tiptap')).toContainText('Erika Muster');await expect(page.locator('.tiptap [data-style-id="coverTitle"]')).toHaveCount(1);});

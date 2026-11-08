@@ -20,16 +20,23 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node scripts/prepare-pandoc.cjs
       - run: npm run build
       - run: npm test
+        env:
+          WRITELY_PANDOC: ${{ github.workspace }}\.tools\pandoc.exe
       - name: Test real Windows desktop
+        env:
+          WRITELY_PANDOC: ${{ github.workspace }}\.tools\pandoc.exe
         run: npm run test:desktop
       - name: Package Windows x64
-        run: npm exec electron-builder -- --win zip --x64 --publish never
+        run: npm exec electron-builder -- --win zip nsis --x64 --publish never
       - uses: actions/upload-artifact@v4
         with:
           name: Writely-Windows-x64
-          path: release/*.zip
+          path: |
+            release/*.zip
+            release/*.exe
       - uses: actions/upload-artifact@v4
         if: always()
         with:

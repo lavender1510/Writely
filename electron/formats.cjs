@@ -254,6 +254,7 @@ function styleCss(style) {
 }
 function exportStyles(document) {
   const rules = [];
+  if(document.theme==='Dunkel')rules.push('body{background:#25212d}');
   for (const [key, selector] of Object.entries({ normal: 'body,p,li,td,th', h1: 'h1', h2: 'h2', h3: 'h3', h4: 'h4', h5: 'h5', h6: 'h6', quote: 'blockquote', code: 'pre,code' })) {
     const css = styleCss(resolveStyle(document, key));
     if (css) rules.push(`${selector}{${css}}`);
@@ -261,6 +262,7 @@ function exportStyles(document) {
   for (const key of Object.keys(document?.styles || {})) {
     if (/^[a-zA-Z0-9_-]{1,100}$/.test(key)) rules.push(`[data-style-id="${key}"],[data-style="${key}"]{${styleCss(resolveStyle(document, key))}}`);
   }
+  if(document.styles?.coverTitle)rules.push('hr:first-of-type{break-after:page}');
   return rules.join('\n');
 }
 function contentHtml(node, document) {
@@ -331,6 +333,7 @@ function exportText(document, format) {
 async function exportDocx(document) {
   const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, ImageRun, ExternalHyperlink, HeadingLevel, AlignmentType, WidthType, LevelFormat } = docx;
   const numbering = [];
+  let coverSeparatorPending=!!document.styles?.coverTitle;
   const customIds = Object.fromEntries(Object.keys(document.styles || {}).map(key => [key, `Writely_${Buffer.from(key).toString('base64url')}`]));
   function runStyle(style) {
     const result = {};
@@ -399,6 +402,7 @@ async function exportDocx(document) {
       }
       if (node.type === 'blockquote') return blocks(node.content).map(p => p instanceof Paragraph ? p : p);
       if (node.type === 'listItem') return blocks(node.content, list, level);
+      if (node.type === 'horizontalRule' && coverSeparatorPending) {coverSeparatorPending=false;return [new Paragraph({children:[new docx.PageBreak()]})];}
       if (node.type === 'horizontalRule') return [new Paragraph({ border: { bottom: { color: 'AAAAAA', size: 6, style: 'single' } }, children: [] })];
       if (!['paragraph', 'heading', 'codeBlock'].includes(node.type)) return blocks(node.content, list, level);
       const alignment = { left: AlignmentType.LEFT, center: AlignmentType.CENTER, right: AlignmentType.RIGHT, justify: AlignmentType.JUSTIFIED }[attrs.textAlign];
@@ -419,6 +423,7 @@ async function exportDocx(document) {
   const letter = document.page?.size === 'Letter';
   const semanticDefaults = Object.fromEntries(Array.from({ length: 6 }, (_, i) => i + 1).filter(level => document.styles?.[`h${level}`]).map(level => [`heading${level}`, { run: runStyle(resolveStyle(document, `h${level}`)), paragraph: paragraphStyle(resolveStyle(document, `h${level}`)) }]));
   const file = new Document({
+    ...(document.theme==='Dunkel'?{background:{color:'25212d'}}:{}),
     creator: 'Writely', title: document.title || 'Unbenannt', description: 'Mit Writely erstellt',
     styles: {
       default: { document: { run: { font: 'Georgia', size: 24, ...runStyle(resolveStyle(document, 'normal')) }, paragraph: { spacing: { line: 300, ...(paragraphStyle(resolveStyle(document, 'normal')).spacing || {}) } } }, ...semanticDefaults },

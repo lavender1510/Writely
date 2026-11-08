@@ -8,6 +8,8 @@ const { bundledFontFaces } = require('./pdf-styles.cjs');
 const APP_DIRECTORY = path.resolve(__dirname, '..', 'dist');
 let mainWindow;
 let store;
+let library;
+let pendingLaunch=process.argv.find(arg=>/\.writely$/i.test(arg));
 let isQuitting = false;
 let closing = false;
 let closePending = false;
@@ -71,6 +73,11 @@ async function exportPDF(document, html) {
 }
 
 function registerBridge() {
+  handle('launch-open',async()=>{if(!pendingLaunch)return null;const filePath=path.resolve(pendingLaunch);pendingLaunch=undefined;const document=await readDocument(filePath);writablePaths.add(filePath);await library.put(document,filePath);return {document,path:filePath};});
+  handle('library-list',()=>library.list());
+  handle('library-get',async id=>{const result=await library.get(id);if(result.path)writablePaths.add(path.resolve(result.path));return result;});
+  handle('library-put',(doc,filePath)=>library.put(validateDocument(doc),typeof filePath==='string'&&writablePaths.has(path.resolve(filePath))?filePath:undefined));
+  handle('library-mutate',(action,data)=>library.mutate(action,data));
   handle('flush-reply', (token, document) => {
     if (!pendingFlush || pendingFlush.token !== token) return;
     const snapshot = document === undefined ? null : validateDocument(document);
@@ -80,12 +87,13 @@ function registerBridge() {
   });
   handle('request-close', async document => {
     await store.autosave(validateDocument(document));
+    await library.put(document);
     await store.flush();
     // Let the invocation return before destroying its renderer process.
     setImmediate(() => { closing = true; if (!mainWindow.isDestroyed()) mainWindow.close(); });
   });
   handle('open', async () => {
-    const result = await dialog.showOpenDialog(mainWindow, { title: 'Dokument öffnen', properties: ['openFile'], filters: [{ name: 'Unterstützte Dokumente', extensions: ['writely', 'docx', 'txt', 'md', 'markdown', 'html', 'htm'] }, { name: 'Alle Dateien', extensions: ['*'] }] });
+    const result = await dialog.showOpenDialog(mainWindow, { title: 'Dokument öffnen', properties: ['openFile'], filters: [{ name: 'Unterstützte Dokumente', extensions: ['writely', 'docx', 'txt', 'md', 'markdown', 'html', 'htm', 'odt', 'rtf', 'epub'] }, { name: 'Alle Dateien', extensions: ['*'] }] });
     if (result.canceled || !result.filePaths[0]) return null;
     const filePath = result.filePaths[0];
     const stat = await fs.stat(filePath);
@@ -93,8 +101,10 @@ function registerBridge() {
     const extension = path.extname(filePath).toLowerCase().slice(1);
     let document;
     if (extension === 'writely') document = await readDocument(filePath);
+    else if(['odt','rtf','epub'].includes(extension)){const html=await require('./converters.cjs').convert(await fs.readFile(filePath),extension,'html',path.basename(filePath));document=validateDocument(await require('./formats.cjs').importFile(html,'html',path.basename(filePath)));document.importWarnings=['Semantischer Import: Seitenlayout, Kopf-/Fußzeilen, Noten und Kommentare können vereinfacht werden. Bitte prüfe das Ergebnis.'];}
     else document = validateDocument(await require('./formats.cjs').importFile(await fs.readFile(filePath), extension, path.basename(filePath)));
     if (extension === 'writely') writablePaths.add(path.resolve(filePath));
+    await library.put(document,filePath);
     return { path: filePath, document };
   });
   handle('save', async (document, requestedPath) => {
@@ -108,20 +118,22 @@ function registerBridge() {
       writablePaths.add(path.resolve(filePath));
     }
     await store.save(document, filePath);
+    await library.put(document,filePath);
     return { path: filePath };
   });
   handle('recover', () => store.recover());
-  handle('autosave', document => store.autosave(validateDocument(document)));
+  handle('autosave', async document => {await store.autosave(validateDocument(document));await library.put(document);});
   handle('versions', () => store.versions());
   handle('restore-version', id => store.restoreVersion(id));
   handle('export', async (format, document, html) => {
     validateDocument(document);
-    const names = { docx: 'Word-Dokument', pdf: 'PDF-Dokument', html: 'HTML-Dokument', txt: 'Textdatei', md: 'Markdown' };
+    const names = { docx: 'Word-Dokument', pdf: 'PDF-Dokument', html: 'HTML-Dokument', txt: 'Textdatei', md: 'Markdown', odt:'OpenDocument',rtf:'Rich Text',epub:'E-Book' };
     if (!Object.hasOwn(names, format)) throw new Error('Dieses Dateiformat wird in dieser Vorabversion noch nicht unterstützt.');
     const result = await dialog.showSaveDialog(mainWindow, { title: `Als ${names[format]} exportieren`, defaultPath: `${documentName(document)}.${format}`, filters: [{ name: names[format], extensions: [format] }] });
     if (result.canceled || !result.filePath) return null;
     const filePath = result.filePath.toLowerCase().endsWith(`.${format}`) ? result.filePath : `${result.filePath}.${format}`;
-    const resultBuffer = format === 'pdf' ? await exportPDF(document, html) : await require('./formats.cjs').exportDocument(format, document, html);
+    let resultBuffer = ['odt','rtf','epub'].includes(format) ? await require('./converters.cjs').convert(Buffer.from(require('./formats.cjs').exportText(document,'html')),'html',format,document.title) : format === 'pdf' ? await exportPDF(document, html||require('./formats.cjs').exportText(document,'html')) : await require('./formats.cjs').exportDocument(format, document, html);
+    if(format==='odt'&&document.styles?.coverTitle)resultBuffer=await require('./converters.cjs').coverOdt(resultBuffer);
     await atomicWrite(filePath, resultBuffer);
     return { path: filePath };
   });
@@ -155,7 +167,7 @@ function lockNetwork() {
 }
 
 async function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1500, height: 960, minWidth: 960, minHeight: 640, show: false, frame: false, title: 'Writely', backgroundColor: '#f5f4f8', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: true } });
+  mainWindow = new BrowserWindow({ width: 1500, height: 960, minWidth: 960, minHeight: 640, show: false, frame: false, icon:path.join(APP_DIRECTORY,'writely.png'), title: 'Writely', backgroundColor: '#f5f4f8', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: true } });
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
   mainWindow.once('ready-to-show', () => mainWindow.show());
@@ -171,7 +183,7 @@ async function createWindow() {
         pendingFlush = { token, resolve: value => { clearTimeout(timeout); resolve(value); } };
         mainWindow.webContents.send('writely:flush', token);
       });
-      if (document) await store.autosave(document);
+      if (document) {await store.autosave(document);await library.put(document);}
       await store.flush();
       closing = true;
       if (!mainWindow.isDestroyed()) mainWindow.close();
@@ -187,6 +199,7 @@ else {
   app.whenReady().then(async () => {
     Menu.setApplicationMenu(null);
     store = new LocalStore(path.join(app.getPath('userData'), 'local-documents'));
+    library=new (require('./library.cjs').Library)(path.join(app.getPath('userData'),'library'));
     lockNetwork();
     registerBridge();
     await createWindow();

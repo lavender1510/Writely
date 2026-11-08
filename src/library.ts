@@ -1,0 +1,12 @@
+import {getApi} from './browser';
+import type {DocumentFile} from './shared';
+const api=getApi();
+const key='writely.library.v2';
+const read=()=>JSON.parse(localStorage.getItem(key)||'{"folders":[],"documents":[],"templates":[],"styleSets":[]}');
+const write=(data:any)=>localStorage.setItem(key,JSON.stringify(data));
+export const library={
+ async list(){return api.libraryList?api.libraryList():read();},
+ async get(id:string){if(api.libraryGet)return api.libraryGet(id);const d=read().documents.find((d:any)=>d.id===id);if(!d)throw new Error('Das Dokument wurde nicht gefunden.');return {document:d.document,path:d.path};},
+ async put(document:DocumentFile,path?:string){if(api.libraryPut)return api.libraryPut(document,path);const data=read();const old=data.documents.find((d:any)=>d.id===document.id);const record={...old,id:document.id,title:document.title,document,path:path||old?.path,updatedAt:document.updatedAt,createdAt:document.createdAt,lastOpenedAt:new Date().toISOString(),words:JSON.stringify(document.content).split(/\s+/).length,size:JSON.stringify(document).length};data.documents=data.documents.filter((d:any)=>d.id!==document.id);data.documents.push(record);write(data);return record;},
+ async mutate(action:string,input:any){if(api.libraryMutate)return api.libraryMutate(action,input);const data=read();if(action==='folder-save'){const folder={...input,id:input.id||crypto.randomUUID()};let id=folder.parentId;const seen=new Set([folder.id]);while(id){if(seen.has(id))throw new Error('Ein Ordner kann nicht in sich selbst verschoben werden.');seen.add(id);id=data.folders.find((f:any)=>f.id===id)?.parentId;}data.folders=data.folders.filter((f:any)=>f.id!==folder.id);data.folders.push(folder);}else if(action==='folder-delete'){const ids=new Set([input.id]);let size=0;while(size!==ids.size){size=ids.size;data.folders.forEach((f:any)=>{if(ids.has(f.parentId))ids.add(f.id);});}data.folders=data.folders.filter((f:any)=>!ids.has(f.id));data.documents.forEach((d:any)=>{if(ids.has(d.folderId))d.folderId=null;});}else if(action==='document-update')Object.assign(data.documents.find((d:any)=>d.id===input.id),input);else if(action==='document-remove')data.documents=data.documents.filter((d:any)=>d.id!==input.id);else if(action==='template-save'||action==='styles-save')data[action==='template-save'?'templates':'styleSets'].push({id:crypto.randomUUID(),name:input.name,document:input.document});write(data);return data;}
+};

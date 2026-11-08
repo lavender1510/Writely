@@ -105,7 +105,7 @@ export function styleSheet(styles: Record<string, StyleDefinition>): string {
     return style ? { ...(style.basedOn ? resolve(style.basedOn, seen) : {}), ...style } : { name: key };
   };
   const selectors: Record<string, string> = { normal: '.tiptap', h1: '.tiptap h1', h2: '.tiptap h2', h3: '.tiptap h3', h4: '.tiptap h4', h5: '.tiptap h5', h6: '.tiptap h6', quote: '.tiptap blockquote', code: '.tiptap pre,.tiptap code' };
-  return Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key))}}`).join('\n');
+  return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key))}}`).join('\n');
 }
 
 export function resolveFont(requested: string, available: string[]): { family: string; substituted: boolean } {

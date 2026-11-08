@@ -25,6 +25,7 @@ export interface FontReference {
 
 export interface DocumentFile {
   schemaVersion: 1;
+  theme?: string;
   id: string;
   title: string;
   createdAt: string;
@@ -37,9 +38,14 @@ export interface DocumentFile {
 }
 
 export interface VersionInfo { id: string; title: string; updatedAt: string }
-export type ExportFormat = 'docx' | 'pdf' | 'html' | 'txt' | 'md';
+export type ExportFormat = 'docx' | 'pdf' | 'html' | 'txt' | 'md' | 'odt' | 'rtf' | 'epub';
 export interface DesktopBridge {
   platform: string;
+  launchOpen?():Promise<{document:DocumentFile;path?:string}|null>;
+  libraryList?():Promise<any>;
+  libraryGet?(id:string):Promise<{document:DocumentFile;path?:string}>;
+  libraryPut?(doc:DocumentFile,path?:string):Promise<any>;
+  libraryMutate?(action:string,data:any):Promise<any>;
   open(): Promise<{ path: string; document: DocumentFile } | null>;
   save(document: DocumentFile, path?: string): Promise<{ path: string } | null>;
   recover(): Promise<DocumentFile | null>;

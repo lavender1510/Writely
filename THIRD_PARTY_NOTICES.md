@@ -43,3 +43,7 @@ Electron 45.2.3 wird zur Laufzeit mitgeliefert und steht als Projekt unter MIT. 
 | `@types/react-dom` | 19.3.0 | MIT |
 
 Paketlizenzangaben wurden aus den tatsächlich installierten `package.json`-Dateien geprüft. Transitive Pakete und ihre Lizenztexte gehören ebenfalls zum ausgelieferten Abhängigkeitsbaum; diese Tabelle ist keine vollständige Inventarliste aller transitiven Dateien. Beim Paketieren bleiben deren Lizenzdateien sowie die Electron-/Chromium-Hinweise erhalten.
+
+## Pandoc 3.13
+
+Pandoc wird als separates lokales Programm aufgerufen und im Windows-Paket mitgeliefert. Lizenz: GNU GPL, Version 2 oder später, siehe `tools/COPYING.md`. Der korrespondierende Quellcode liegt als `tools/pandoc-source.tar.gz` bei. Herkunft: https://github.com/jgm/pandoc/releases/tag/3.13 . Die App benötigt zur Nutzung keine Verbindung zu diesem Dienst.

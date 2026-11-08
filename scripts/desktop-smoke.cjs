@@ -33,6 +33,8 @@ async function until(check, label, timeout = 15000) {
     });
     window = await app.firstWindow();
     window.on('pageerror', error => report.pageErrors.push(error.message));
+    await window.getByRole('button',{name:'Vorlagen',exact:true}).click();
+    await window.getByRole('button',{name:/Writely kennenlernen/}).click();
     await window.locator('.tiptap h1').waitFor();
     await window.locator('.tiptap[contenteditable="true"]').waitFor();
     assert.equal(await window.evaluate(() => window.writely.platform), process.platform);

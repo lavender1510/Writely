@@ -203,7 +203,7 @@ const browserApi: DesktopBridge = {
     return result;
   },
   async exportFile(format: ExportFormat, doc, html) {
-    if (format === 'docx' || format === 'pdf') throw new Error(`Bitte nutze die Desktop-App für den ${format.toUpperCase()}-Export.`);
+    if (['docx','pdf','odt','rtf','epub'].includes(format)) throw new Error(`Bitte nutze die Desktop-App für den ${format.toUpperCase()}-Export.`);
     const name = `${doc.title.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_') || 'Dokument'}.${format}`;
     const result = format === 'html' ? html || `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${escape(doc.title)}</title><style>${styleSheet(doc.styles)}</style></head><body><main class="tiptap">${nodeHtml(doc.content)}</main></body></html>` : format === 'md' ? nodeMarkdown(doc.content) : documentText(doc.content);
     download(result, name, format === 'html' ? 'text/html;charset=utf-8' : 'text/plain;charset=utf-8');
