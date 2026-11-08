@@ -13,6 +13,11 @@ ipcRenderer.on('writely:flush', async (_event, token) => {
 // Expose only the capability-specific document API; never expose raw IPC or Node.
 contextBridge.exposeInMainWorld('writely', Object.freeze({
   platform: process.platform,
+  nativeWindow:true,
+  onWindowSettingsChanged:callback=>{const listener=(_event,info)=>callback(info);ipcRenderer.on('writely:window-changed',listener);return ()=>ipcRenderer.removeListener('writely:window-changed',listener);},
+  getWindowSettings:()=>ipcRenderer.invoke('writely:window-settings'),
+  setWindowMode:mode=>ipcRenderer.invoke('writely:window-mode',mode),
+  moveWindowToDisplay:id=>ipcRenderer.invoke('writely:window-display',id),
   launchOpen:()=>ipcRenderer.invoke('writely:launch-open'),
   libraryList:()=>ipcRenderer.invoke('writely:library-list'),
   libraryGet:id=>ipcRenderer.invoke('writely:library-get',id),

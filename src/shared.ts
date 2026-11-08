@@ -39,7 +39,13 @@ export interface DocumentFile {
 
 export interface VersionInfo { id: string; title: string; updatedAt: string }
 export type ExportFormat = 'docx' | 'pdf' | 'html' | 'txt' | 'md' | 'odt' | 'rtf' | 'epub';
+export interface WindowPreferences { mode:'windowed'|'maximized'|'fullscreen';displayId:number;displays:{id:number;label:string}[]; }
 export interface DesktopBridge {
+  nativeWindow?:boolean;
+  onWindowSettingsChanged?(callback:(settings:WindowPreferences)=>void):()=>void;
+  getWindowSettings?():Promise<WindowPreferences>;
+  setWindowMode?(mode:WindowPreferences['mode']):Promise<WindowPreferences>;
+  moveWindowToDisplay?(id:number):Promise<WindowPreferences>;
   platform: string;
   launchOpen?():Promise<{document:DocumentFile;path?:string}|null>;
   libraryList?():Promise<any>;

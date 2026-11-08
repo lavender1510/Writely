@@ -33,6 +33,24 @@ async function until(check, label, timeout = 15000) {
     });
     window = await app.firstWindow();
     window.on('pageerror', error => report.pageErrors.push(error.message));
+    await window.getByRole('button',{name:'Einstellungen',exact:true}).click();
+    if(process.platform==='win32')await window.getByLabel('Fenstermodus',{exact:true}).selectOption('maximized');
+    else await window.evaluate(()=>window.writely.setWindowMode('maximized'));
+    await until(async()=>JSON.parse(await fs.readFile(path.join(profile,'window-settings.json'),'utf8')).mode==='maximized','persist maximized setting');
+    if(process.platform==='win32') await until(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isMaximized()),'native Windows maximize');
+    if(process.platform==='win32')await window.getByLabel('Fenstermodus',{exact:true}).selectOption('windowed');
+    else await window.evaluate(()=>window.writely.setWindowMode('windowed'));
+    await until(async()=>JSON.parse(await fs.readFile(path.join(profile,'window-settings.json'),'utf8')).mode==='windowed','persist windowed setting');
+    assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isFullScreen()),false);
+    if(process.platform==='win32')assert.equal(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isMovable()),true);
+    if(process.platform==='win32') {
+      await window.getByLabel('Fenstermodus',{exact:true}).selectOption('fullscreen');
+      await until(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isFullScreen()),'native Windows fullscreen');
+      await window.keyboard.press('Escape');
+      await until(()=>app.evaluate(({BrowserWindow})=>!BrowserWindow.getAllWindows()[0].isFullScreen()),'Escape exits fullscreen');
+      await until(async()=>(await window.getByLabel('Fenstermodus',{exact:true}).inputValue())==='windowed','settings reflect Escape');
+    }
+    report.checks.push('settings switch to maximized/windowed, persist mode, and native window stays movable');
     await window.getByRole('button',{name:'Vorlagen',exact:true}).click();
     await window.getByRole('button',{name:/Writely kennenlernen/}).click();
     await window.locator('.tiptap h1').waitFor();

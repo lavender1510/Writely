@@ -1,4 +1,4 @@
-const { app, BrowserWindow, dialog, ipcMain, Menu, session } = require('electron');
+const { app, BrowserWindow, dialog, ipcMain, Menu, session, screen } = require('electron');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { pathToFileURL, fileURLToPath } = require('node:url');
@@ -9,6 +9,7 @@ const APP_DIRECTORY = path.resolve(__dirname, '..', 'dist');
 let mainWindow;
 let store;
 let library;
+let windowSettings;
 let pendingLaunch=process.argv.find(arg=>/\.writely$/i.test(arg));
 let isQuitting = false;
 let closing = false;
@@ -25,7 +26,7 @@ function isMainFrame(event) {
 function assertSender(event) { if (!isMainFrame(event)) throw new Error('Dieser Zugriff auf Writely ist nicht erlaubt.'); }
 function germanError(error) {
   const message = typeof error?.message === 'string' ? error.message : '';
-  if (/^(Die Writely-Datei|Diese Dokumentversion|Dieses Dateiformat|Das Dokument|Der Import|Die Datei)/.test(message)) return message;
+  if (/^(Dieser Fenstermodus|Dieser Bildschirm|Die Writely-Datei|Diese Dokumentversion|Dieses Dateiformat|Das Dokument|Der Import|Die Datei)/.test(message)) return message;
   if (error?.code === 'ENOENT') return 'Die Datei wurde nicht gefunden. Sie wurde möglicherweise verschoben.';
   if (['EACCES', 'EPERM', 'EBUSY'].includes(error?.code)) return 'Die Datei konnte nicht geschrieben werden. Prüfe die Zugriffsrechte und ob sie in einer anderen App geöffnet ist.';
   if (error?.code === 'ENOSPC') return 'Die Datei konnte nicht gespeichert werden. Auf dem Laufwerk ist kein freier Speicherplatz mehr.';
@@ -73,6 +74,9 @@ async function exportPDF(document, html) {
 }
 
 function registerBridge() {
+  handle('window-settings',()=>windowSettings.info());
+  handle('window-mode',mode=>windowSettings.setMode(mode));
+  handle('window-display',id=>windowSettings.move(id));
   handle('launch-open',async()=>{if(!pendingLaunch)return null;const filePath=path.resolve(pendingLaunch);pendingLaunch=undefined;const document=await readDocument(filePath);writablePaths.add(filePath);await library.put(document,filePath);return {document,path:filePath};});
   handle('library-list',()=>library.list());
   handle('library-get',async id=>{const result=await library.get(id);if(result.path)writablePaths.add(path.resolve(result.path));return result;});
@@ -147,7 +151,7 @@ function registerBridge() {
   for (const action of ['minimize', 'maximize', 'close']) ipcMain.on(`writely:${action}`, event => {
     if (!isMainFrame(event)) return;
     if (action === 'minimize') mainWindow.minimize();
-    if (action === 'maximize') mainWindow.isMaximized() ? mainWindow.unmaximize() : mainWindow.maximize();
+    if (action === 'maximize') windowSettings.setMode(mainWindow.isMaximized()||mainWindow.isFullScreen()?'windowed':'maximized').catch(()=>{});
     if (action === 'close') mainWindow.close();
   });
 }
@@ -167,10 +171,15 @@ function lockNetwork() {
 }
 
 async function createWindow() {
-  mainWindow = new BrowserWindow({ width: 1500, height: 960, minWidth: 960, minHeight: 640, show: false, frame: false, icon:path.join(APP_DIRECTORY,'writely.png'), title: 'Writely', backgroundColor: '#f5f4f8', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: true } });
+  windowSettings=new (require('./window-settings.cjs').WindowSettings)(path.join(app.getPath('userData'),'window-settings.json'),screen);
+  const bounds=await windowSettings.load();
+  mainWindow = new BrowserWindow({ ...bounds, minWidth: Math.min(960,bounds.width), minHeight:Math.min(640,bounds.height), resizable:true, movable:true, show: false, frame: true, icon:path.join(APP_DIRECTORY,'writely.png'), title: 'Writely', backgroundColor: '#f5f4f8', webPreferences: { preload: path.join(__dirname, 'preload.cjs'), sandbox: true, contextIsolation: true, nodeIntegration: false, webSecurity: true, spellcheck: true } });
+  windowSettings.changed=info=>{if(!mainWindow.isDestroyed())mainWindow.webContents.send('writely:window-changed',info);};
+  windowSettings.attach(mainWindow);
+  mainWindow.webContents.on('before-input-event',(event,input)=>{if(input.type==='keyDown'&&((input.key==='Escape'&&mainWindow.isFullScreen())||(input.key==='F11'&&input.control&&input.shift))){event.preventDefault();windowSettings.setMode('windowed').catch(()=>{});}});
   mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
   mainWindow.webContents.on('will-navigate', event => event.preventDefault());
-  mainWindow.once('ready-to-show', () => mainWindow.show());
+  mainWindow.once('ready-to-show', () => {mainWindow.show();windowSettings.setMode(windowSettings.state.mode).catch(()=>{});});
   mainWindow.on('close', event => {
     if (closing) return;
     event.preventDefault();
@@ -185,6 +194,7 @@ async function createWindow() {
       });
       if (document) {await store.autosave(document);await library.put(document);}
       await store.flush();
+      await windowSettings.queue;
       closing = true;
       if (!mainWindow.isDestroyed()) mainWindow.close();
     })().catch(error => { closePending = false; dialog.showErrorBox('Writely konnte deine letzten Änderungen nicht sichern', germanError(error)); });

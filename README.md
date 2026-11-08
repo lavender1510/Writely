@@ -1,8 +1,10 @@
 # Writely
 
-Eine lokale Schreibapp mit deutscher Windows-Oberfläche. **0.2.0-alpha.1** bringt einen Startbildschirm, Dokumentenbibliothek, Ordner, mehr Vorlagen, Themes, Cover und lokale Formatkonvertierung.
+Eine lokale Schreibapp mit deutscher Windows-Oberfläche. **0.2.1-alpha.1** bringt einen Startbildschirm, Dokumentenbibliothek, Ordner, mehr Vorlagen, Themes, Cover und lokale Formatkonvertierung.
 
 ![Writely Startbildschirm](docs/images/startbildschirm.png)
+
+Neu in 0.2.1: Unter **Einstellungen → Fenster & Bildschirme** zwischen Fenster, maximiert und Vollbild wechseln und Writely auf einen anderen Bildschirm verschieben. Zurück zum Fenster: `Strg+Umschalt+F11`.
 
 ## Download
 
