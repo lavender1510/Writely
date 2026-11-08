@@ -81,7 +81,31 @@ async function exportPDFSection(document, html, pageCSS='') {
 function registerBridge() {
   handle('clipboard-image',()=>{const image=require('electron').clipboard.readImage();if(image.isEmpty())throw new Error('Die Datei fehlt: In der Zwischenablage liegt kein Bild.');return image.toDataURL();});
   handle('screenshot',async()=>{const sources=await require('electron').desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:1920,height:1080}});if(!sources.length)throw new Error('Die Datei konnte nicht erstellt werden: Kein Bildschirm für einen Screenshot verfügbar.');const result=await dialog.showMessageBox(mainWindow,{type:'question',title:'Screenshot einfügen',message:'Welchen Bildschirm möchtest du als Bild einfügen?',buttons:[...sources.map(s=>s.name),'Abbrechen'],cancelId:sources.length});if(result.response>=sources.length)return null;return sources[result.response].thumbnail.toDataURL();});
-  handle('preview',async document=>{validateDocument(document);const bytes=await exportPDF(document,'');const dir=await fs.mkdtemp(path.join(app.getPath('temp'),'writely-preview-'));const file=path.join(dir,'Druckvorschau.pdf');await atomicWrite(file,bytes);const previewSession=session.fromPartition('preview-'+Date.now());previewSession.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!details.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')&&!details.url.startsWith('chrome://resources/')&&!details.url.startsWith('chrome://pdf/')&&!details.url.startsWith('blob:')&&!details.url.startsWith('data:')&&details.url!==pathToFileURL(file).href}));previewSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));const preview=new BrowserWindow({parent:mainWindow,icon:path.join(APP_DIRECTORY,'writely.png'),width:1100,height:850,title:'Writely · Druckvorschau',webPreferences:{session:previewSession,sandbox:true,contextIsolation:true,nodeIntegration:false,plugins:true}});preview.webContents.setWindowOpenHandler(()=>({action:'deny'}));preview.webContents.on('will-navigate',event=>event.preventDefault());preview.on('closed',()=>fs.rm(dir,{recursive:true,force:true}).catch(()=>{}));await preview.loadFile(file);});
+  handle('preview', async document => {
+    validateDocument(document);
+    const bytes = await exportPDF(document, '');
+    const dir = await fs.mkdtemp(path.join(app.getPath('temp'), 'writely-preview-'));
+    const file = path.join(dir, 'Druckvorschau.pdf');
+    await atomicWrite(file, bytes);
+    const viewerOrigin = 'chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/';
+    const sameFile = url => {
+      try {
+        if (!url.startsWith('file:')) return false;
+        const candidate = path.resolve(fileURLToPath(url)), expected = path.resolve(file);
+        return process.platform === 'win32' ? candidate.toLowerCase() === expected.toLowerCase() : candidate === expected;
+      } catch { return false; }
+    };
+    const isViewerDocument = url => sameFile(url) || url.startsWith(viewerOrigin);
+    const previewSession = session.fromPartition('preview-' + Date.now());
+    previewSession.webRequest.onBeforeRequest((details, callback) => callback({ cancel: !isViewerDocument(details.url) && !details.url.startsWith('chrome://resources/') && !details.url.startsWith('chrome://pdf/') && !details.url.startsWith('blob:') && !details.url.startsWith('data:') }));
+    previewSession.setPermissionRequestHandler((_wc, _permission, callback) => callback(false));
+    const preview = new BrowserWindow({ parent: mainWindow, icon: path.join(APP_DIRECTORY, 'writely.png'), width: 1100, height: 850, title: 'Writely · Druckvorschau', webPreferences: { session: previewSession, sandbox: true, contextIsolation: true, nodeIntegration: false, plugins: true } });
+    preview.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    preview.webContents.on('will-navigate', (event, url) => { if (!isViewerDocument(url)) event.preventDefault(); });
+    preview.on('closed', () => fs.rm(dir, { recursive: true, force: true }).catch(() => {}));
+    try { await preview.loadFile(file); }
+    catch (error) { console.error('Writely PDF preview:', error); if (!preview.isDestroyed()) preview.destroy(); throw error; }
+  });
   handle('window-settings',()=>windowSettings.info());
   handle('window-mode',mode=>windowSettings.setMode(mode));
   handle('window-display',id=>windowSettings.move(id));

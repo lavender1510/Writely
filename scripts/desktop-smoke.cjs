@@ -31,6 +31,7 @@ async function until(check, label, timeout = 15000) {
       env: { ...process.env, ...(process.platform === 'linux' ? { XDG_CONFIG_HOME: path.join(work, 'config'), XDG_CACHE_HOME: path.join(work, 'cache') } : {}) },
       timeout: 20000,
     });
+    let desktopLog='';app.process().stderr.on('data',chunk=>{desktopLog=(desktopLog+chunk.toString()).slice(-12000);report.desktopLog=desktopLog;});
     window = await app.firstWindow();
     await app.evaluate(({BrowserWindow})=>{globalThis.__windowKeys=[];const w=BrowserWindow.getAllWindows()[0];w.webContents.on('before-input-event',(_event,input)=>{if(input.key==='Escape'||input.key==='F11')globalThis.__windowKeys.push({key:input.key,type:input.type,full:w.isFullScreen()});});});
     window.on('pageerror', error => report.pageErrors.push(error.message));
