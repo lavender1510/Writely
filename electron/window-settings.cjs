@@ -17,6 +17,7 @@ function fitBounds(bounds, displays, preferredId) {
 async function readSettings(file) {
   try {
     const value = JSON.parse(await fs.readFile(file, 'utf8'));
+    if(!value||typeof value!=='object'||Array.isArray(value))return {mode:'windowed'};
     const b = value.bounds;
     return { mode: MODES.includes(value.mode) ? value.mode : 'windowed', bounds: b && ['x', 'y', 'width', 'height'].every(k => Number.isFinite(b[k]) && Math.abs(b[k]) < 100000) && b.width > 0 && b.height > 0 ? b : undefined };
   } catch (error) {
@@ -51,6 +52,7 @@ class WindowSettings {
       if (mode === 'maximized') w.maximize();
       if (mode === 'fullscreen') w.setFullScreen(true);
       this.state.mode = mode;
+      w.focus(); w.webContents?.focus();
       await this.save();
     } finally { this.applying = false; }
     // Return the requested mode: native full-screen transitions can finish asynchronously.

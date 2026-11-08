@@ -32,6 +32,7 @@ async function until(check, label, timeout = 15000) {
       timeout: 20000,
     });
     window = await app.firstWindow();
+    await app.evaluate(({BrowserWindow})=>{globalThis.__windowKeys=[];const w=BrowserWindow.getAllWindows()[0];w.webContents.on('before-input-event',(_event,input)=>{if(input.key==='Escape'||input.key==='F11')globalThis.__windowKeys.push({key:input.key,type:input.type,full:w.isFullScreen()});});});
     window.on('pageerror', error => report.pageErrors.push(error.message));
     await window.getByRole('button',{name:'Einstellungen',exact:true}).click();
     if(process.platform==='win32')await window.getByLabel('Fenstermodus',{exact:true}).selectOption('maximized');
@@ -46,6 +47,9 @@ async function until(check, label, timeout = 15000) {
     if(process.platform==='win32') {
       await window.getByLabel('Fenstermodus',{exact:true}).selectOption('fullscreen');
       await until(()=>app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].isFullScreen()),'native Windows fullscreen');
+      await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];w.focus();w.webContents.focus();});
+      await window.bringToFront();
+      await window.getByLabel('Fenstermodus',{exact:true}).focus();
       await window.keyboard.press('Escape');
       await until(()=>app.evaluate(({BrowserWindow})=>!BrowserWindow.getAllWindows()[0].isFullScreen()),'Escape exits fullscreen');
       await until(async()=>(await window.getByLabel('Fenstermodus',{exact:true}).inputValue())==='windowed','settings reflect Escape');
@@ -158,6 +162,7 @@ async function until(check, label, timeout = 15000) {
     await fs.writeFile(path.join(work, 'report.json'), JSON.stringify(report, null, 2));
     console.log(JSON.stringify(report, null, 2));
   } catch (error) {
+    if(app)report.windowDiagnostics=await app.evaluate(({BrowserWindow})=>{const w=BrowserWindow.getAllWindows()[0];return {keys:globalThis.__windowKeys,focused:w?.isFocused(),fullscreen:w?.isFullScreen(),bounds:w?.getBounds()};}).catch(()=>null);
     if (window && !window.isClosed()) await window.screenshot({ path: path.join(work, 'failure.png') }).catch(() => {});
     if (app) await app.close().catch(() => {});
     await fs.writeFile(path.join(work, 'report.json'), JSON.stringify({ ...report, failure: error.message }, null, 2));
