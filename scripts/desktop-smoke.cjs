@@ -199,7 +199,7 @@ async function until(check, label, timeout = 15000) {
     assert.equal(parsed.getPageCount(),2);
     assert.ok(Math.abs(parsed.getPage(0).getWidth()-148/25.4*72)<2);
     assert.ok(Math.abs(parsed.getPage(1).getWidth()-297/25.4*72)<2);
-    try{const text=execFileSync('pdftotext',[mixedPDF,'-'],{encoding:'utf8'});assert.match(text,/Seite 5 von 2/);assert.match(text,/Seite 6 von 2/);report.checks.push('mixed PDF numbering continues across sections');}catch(error){if(error.code==='ENOENT')report.skipped.push('Mixed PDF numbering text inspection: pdftotext is not installed');else throw error;}
+    try{const text=execFileSync('pdftotext',['-enc','UTF-8',mixedPDF,'-'],{encoding:'utf8'});assert.match(text,/Seite 5 von 2/);assert.match(text,/Seite 6 von 2/);report.checks.push('mixed PDF numbering continues across sections');}catch(error){if(error.code==='ENOENT')report.skipped.push('Mixed PDF numbering text inspection: pdftotext is not installed');else throw error;}
     await window.evaluate(doc=>window.writely.previewDocument(doc),mixedDoc);
     assert.ok(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length>=2));
     const preview=await until(()=>app.windows().find(p=>/Druckvorschau/.test(p.url())), 'PDF preview window');
@@ -219,7 +219,7 @@ async function until(check, label, timeout = 15000) {
     await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});dialog.showMessageBox=async()=>({response:1,checkboxChecked:false});},referencesPDF);
     await window.evaluate(doc=>window.writely.exportFile('pdf',doc,''),referencesDoc);
     assert.ok((await fs.readFile(referencesPDF)).length>500);
-    try{const text=execFileSync('pdftotext',[referencesPDF,'-'],{encoding:'utf8'});assert.match(text,/Wissenschaftliche Fußnote/);assert.match(text,/Inhaltsverzeichnis/);}catch(error){if(error.code==='ENOENT')report.skipped.push('Reference PDF text inspection: pdftotext is not installed');else throw error;}
+    try{const text=execFileSync('pdftotext',['-enc','UTF-8',referencesPDF,'-'],{encoding:'utf8'});assert.match(text,/Wissenschaftliche Fußnote/);assert.match(text,/Inhaltsverzeichnis/);}catch(error){if(error.code==='ENOENT')report.skipped.push('Reference PDF text inspection: pdftotext is not installed');else throw error;}
     const referencesODT=path.join(work,'references.odt');
     await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},referencesODT);
     await window.evaluate(doc=>window.writely.exportFile('odt',doc,''),referencesDoc);
