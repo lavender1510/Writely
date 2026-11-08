@@ -41,6 +41,10 @@ function handle(name, callback) {
 function documentName(document) { return (document.title || 'Unbenannt').replace(/[<>:"/\\|?*\x00-\x1f]/g, '').trim().slice(0, 180) || 'Unbenannt'; }
 
 async function exportPDF(document, html) {
+  const {renderDocument,sectionBody}=require('./print-layout.cjs');
+  return Buffer.from(await renderDocument(document,(section,css)=>exportPDFSection({...document,page:section.layout},sectionBody(section,document),css)));
+}
+async function exportPDFSection(document, html, pageCSS='') {
   const { safeHtml, exportStyles } = require('./formats.cjs');
   if (typeof html !== 'string' || Buffer.byteLength(html) > MAX_FILE_BYTES) throw new Error('Das Dokument ist für den PDF-Export zu groß.');
   const temporaryRoot = path.join(app.getPath('temp'), 'writely-pdf');
@@ -62,18 +66,22 @@ async function exportPDF(document, html) {
     const fontCSS = await cachedFontCSS;
     const styleCSS = typeof exportStyles === 'function' ? exportStyles(document) : '';
     const title = document.title.replace(/[&<>"']/g, character => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[character]));
-    const pdfHTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:"><style>${fontCSS}body{font-family:'Source Serif 4',serif;font-size:12pt;line-height:1.6;color:#1c1c20}h1,h2,h3,h4,h5,h6{break-after:avoid}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:6px}blockquote{border-left:3px solid #8b6ace;margin-left:0;padding-left:16px;color:#555}pre{white-space:pre-wrap}a{color:inherit;text-decoration:underline}p{orphans:3;widows:3}${styleCSS}</style></head><body>${body}</body></html>`;
+    const pdfHTML = `<!doctype html><html lang="de"><head><meta charset="utf-8"><title>${title}</title><meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; img-src data:; style-src 'unsafe-inline'; font-src data:"><style>${fontCSS}body{font-family:'Source Serif 4',serif;font-size:12pt;line-height:1.6;color:#1c1c20}h1,h2,h3,h4,h5,h6{break-after:avoid}img{max-width:100%;height:auto}table{border-collapse:collapse;width:100%}td,th{border:1px solid #aaa;padding:6px}blockquote{border-left:3px solid #8b6ace;margin-left:0;padding-left:16px;color:#555}pre{white-space:pre-wrap}a{color:inherit;text-decoration:underline}p{orphans:3;widows:3}${styleCSS}${pageCSS}</style></head><body>${body}</body></html>`;
     // A temporary local page avoids Chromium's navigation URL limit with embedded images/fonts.
     const pdfFile = path.join(temporaryDirectory, 'document.html');
     await atomicWrite(pdfFile, pdfHTML);
     await pdfWindow.loadFile(pdfFile);
     // Only this application-owned statement executes; the page's CSP rejects all document scripts.
     await pdfWindow.webContents.executeJavaScript('document.fonts.ready.then(() => true)', true);
-    return await pdfWindow.webContents.printToPDF({ printBackground: true, pageSize: document.page.size, margins: { top: document.page.marginMm / 25.4, bottom: document.page.marginMm / 25.4, left: document.page.marginMm / 25.4, right: document.page.marginMm / 25.4 }, generateDocumentOutline: true });
+    await pdfWindow.webContents.executeJavaScript('Promise.all(Array.from(document.images).map(img=>img.decode().catch(()=>{})))',true);
+    return await pdfWindow.webContents.printToPDF({printBackground:true,preferCSSPageSize:true,pageSize:{width:Math.round(document.page.widthMm*1000),height:Math.round(document.page.heightMm*1000)},margins:{top:0,bottom:0,left:0,right:0},generateDocumentOutline:true});
   } finally { pdfWindow.destroy(); await fs.rm(temporaryDirectory, { recursive: true, force: true }); }
 }
 
 function registerBridge() {
+  handle('clipboard-image',()=>{const image=require('electron').clipboard.readImage();if(image.isEmpty())throw new Error('Die Datei fehlt: In der Zwischenablage liegt kein Bild.');return image.toDataURL();});
+  handle('screenshot',async()=>{const sources=await require('electron').desktopCapturer.getSources({types:['screen'],thumbnailSize:{width:1920,height:1080}});if(!sources.length)throw new Error('Die Datei konnte nicht erstellt werden: Kein Bildschirm für einen Screenshot verfügbar.');const result=await dialog.showMessageBox(mainWindow,{type:'question',title:'Screenshot einfügen',message:'Welchen Bildschirm möchtest du als Bild einfügen?',buttons:[...sources.map(s=>s.name),'Abbrechen'],cancelId:sources.length});if(result.response>=sources.length)return null;return sources[result.response].thumbnail.toDataURL();});
+  handle('preview',async document=>{validateDocument(document);const bytes=await exportPDF(document,'');const dir=await fs.mkdtemp(path.join(app.getPath('temp'),'writely-preview-'));const file=path.join(dir,'Druckvorschau.pdf');await atomicWrite(file,bytes);const previewSession=session.fromPartition('preview-'+Date.now());previewSession.webRequest.onBeforeRequest((details,callback)=>callback({cancel:!details.url.startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')&&!details.url.startsWith('chrome://resources/')&&!details.url.startsWith('chrome://pdf/')&&!details.url.startsWith('blob:')&&!details.url.startsWith('data:')&&details.url!==pathToFileURL(file).href}));previewSession.setPermissionRequestHandler((_wc,_permission,callback)=>callback(false));const preview=new BrowserWindow({parent:mainWindow,icon:path.join(APP_DIRECTORY,'writely.png'),width:1100,height:850,title:'Writely · Druckvorschau',webPreferences:{session:previewSession,sandbox:true,contextIsolation:true,nodeIntegration:false,plugins:true}});preview.webContents.setWindowOpenHandler(()=>({action:'deny'}));preview.webContents.on('will-navigate',event=>event.preventDefault());preview.on('closed',()=>fs.rm(dir,{recursive:true,force:true}).catch(()=>{}));await preview.loadFile(file);});
   handle('window-settings',()=>windowSettings.info());
   handle('window-mode',mode=>windowSettings.setMode(mode));
   handle('window-display',id=>windowSettings.move(id));
@@ -105,7 +113,7 @@ function registerBridge() {
     const extension = path.extname(filePath).toLowerCase().slice(1);
     let document;
     if (extension === 'writely') document = await readDocument(filePath);
-    else if(['odt','rtf','epub'].includes(extension)){const html=await require('./converters.cjs').convert(await fs.readFile(filePath),extension,'html',path.basename(filePath));document=validateDocument(await require('./formats.cjs').importFile(html,'html',path.basename(filePath)));document.importWarnings=['Semantischer Import: Seitenlayout, Kopf-/Fußzeilen, Noten und Kommentare können vereinfacht werden. Bitte prüfe das Ergebnis.'];}
+    else if(['odt','rtf','epub'].includes(extension)){const buffer=await fs.readFile(filePath);const recovered=extension==='odt'||extension==='epub'?await require('./roundtrip.cjs').recover(buffer):null;const layoutImport=!recovered&&extension==='odt'?await require('./odt-layout.cjs').prepare(buffer):null;const html=recovered?null:await require('./converters.cjs').convert(layoutImport?.buffer||buffer,extension,'html',path.basename(filePath));document=recovered||validateDocument(await require('./formats.cjs').importFile(html,'html',path.basename(filePath)));if(layoutImport){document.content=require('./docx-layout.cjs').restore(document.content,layoutImport.tokens);if(layoutImport.page)document.page=layoutImport.page;}if(!recovered)document.importWarnings=['Semantischer Import: Seitenlayout, Kopf-/Fußzeilen, Noten und Kommentare können vereinfacht werden. Bitte prüfe das Ergebnis.'];}
     else document = validateDocument(await require('./formats.cjs').importFile(await fs.readFile(filePath), extension, path.basename(filePath)));
     if (extension === 'writely') writablePaths.add(path.resolve(filePath));
     await library.put(document,filePath);
@@ -136,8 +144,8 @@ function registerBridge() {
     const result = await dialog.showSaveDialog(mainWindow, { title: `Als ${names[format]} exportieren`, defaultPath: `${documentName(document)}.${format}`, filters: [{ name: names[format], extensions: [format] }] });
     if (result.canceled || !result.filePath) return null;
     const filePath = result.filePath.toLowerCase().endsWith(`.${format}`) ? result.filePath : `${result.filePath}.${format}`;
-    let resultBuffer = ['odt','rtf','epub'].includes(format) ? await require('./converters.cjs').convert(Buffer.from(require('./formats.cjs').exportText(document,'html')),'html',format,document.title) : format === 'pdf' ? await exportPDF(document, html||require('./formats.cjs').exportText(document,'html')) : await require('./formats.cjs').exportDocument(format, document, html);
-    if(format==='odt'&&document.styles?.coverTitle)resultBuffer=await require('./converters.cjs').coverOdt(resultBuffer);
+    let resultBuffer = format==='odt'?await require('./odt.cjs').exportOdt(document):['rtf','epub'].includes(format) ? await require('./converters.cjs').convert(Buffer.from(require('./formats.cjs').exportText(document,'html')),'html',format,document.title) : format === 'pdf' ? await exportPDF(document, html||require('./formats.cjs').exportText(document,'html')) : await require('./formats.cjs').exportDocument(format, document, html);
+    if(format==='odt'||format==='epub')resultBuffer=await require('./roundtrip.cjs').attach(resultBuffer,document);
     await atomicWrite(filePath, resultBuffer);
     return { path: filePath };
   });

@@ -45,3 +45,5 @@ jobs:
             work/desktop-smoke/report.json
             work/desktop-smoke/desktop.png
             work/desktop-smoke/document.pdf
+            work/desktop-smoke/preview.png
+            work/desktop-smoke/mixed-layout.pdf

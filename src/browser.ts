@@ -1,4 +1,5 @@
 import { marked } from 'marked';
+import {validateLayout} from '../electron/layout.mjs';
 import { createDocument, documentText, styleSheet } from './document';
 import type { DesktopBridge, DocumentFile, ExportFormat, JSONContent, VersionInfo } from './shared';
 
@@ -9,13 +10,14 @@ const MAX_BYTES = 20 * 1024 * 1024;
 function validDocument(value: unknown): DocumentFile {
   const doc = value as DocumentFile;
   const object = (item: unknown): item is Record<string, unknown> => item !== null && typeof item === 'object' && !Array.isArray(item);
-  if (!doc || doc.schemaVersion !== 1 || typeof doc.id !== 'string' || !doc.id || doc.id.length > 128 || typeof doc.title !== 'string' || doc.title.length > 500 || !doc.content || doc.content.type !== 'doc' || !Array.isArray(doc.content.content) || !object(doc.styles) || !doc.page || !['A4', 'Letter'].includes(doc.page.size) || !Number.isFinite(doc.page.marginMm) || doc.page.marginMm < 5 || doc.page.marginMm > 60 || !Array.isArray(doc.fonts)) throw new Error('Die Datei ist kein gültiges Writely-Dokument oder verwendet eine neuere Formatversion.');
+  if (!doc || doc.schemaVersion !== 1 || typeof doc.id !== 'string' || !doc.id || doc.id.length > 128 || typeof doc.title !== 'string' || doc.title.length > 500 || !doc.content || doc.content.type !== 'doc' || !Array.isArray(doc.content.content) || !object(doc.styles) || !doc.page || !Array.isArray(doc.fonts)) throw new Error('Die Datei ist kein gültiges Writely-Dokument oder verwendet eine neuere Formatversion.');
   if (![doc.createdAt, doc.updatedAt].every(date => typeof date === 'string' && Number.isFinite(Date.parse(date)))) throw new Error('Die Writely-Datei enthält ungültige Zeitstempel.');
   for (const style of Object.values(doc.styles)) {
     if (!object(style) || (style.fontFamily !== undefined && typeof style.fontFamily !== 'string') || (style.fontSize !== undefined && (typeof style.fontSize !== 'number' || !Number.isFinite(style.fontSize))) || (style.basedOn !== undefined && typeof style.basedOn !== 'string')) throw new Error('Die Writely-Datei enthält eine ungültige Formatvorlage.');
   }
   if (doc.fonts.some(font => !object(font) || typeof font.family !== 'string')) throw new Error('Die Writely-Datei enthält eine ungültige Schriftartenliste.');
   let nodes = 0;
+  validateLayout(doc.page);
   const walk = (node: JSONContent, depth: number) => {
     if (!object(node) || depth > 100 || ++nodes > 250_000 || typeof node.type !== 'string' || (node.text !== undefined && typeof node.text !== 'string') || (node.content !== undefined && !Array.isArray(node.content)) || (node.attrs !== undefined && !object(node.attrs)) || (node.marks !== undefined && !Array.isArray(node.marks))) throw new Error('Das Dokument enthält ungültige oder zu tief verschachtelte Inhalte.');
     if (node.marks?.some(mark => !object(mark) || typeof mark.type !== 'string' || (mark.attrs !== undefined && !object(mark.attrs)))) throw new Error('Das Dokument enthält eine ungültige Textformatierung.');

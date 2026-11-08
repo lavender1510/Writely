@@ -14,6 +14,9 @@ ipcRenderer.on('writely:flush', async (_event, token) => {
 contextBridge.exposeInMainWorld('writely', Object.freeze({
   platform: process.platform,
   nativeWindow:true,
+  clipboardImage:()=>ipcRenderer.invoke('writely:clipboard-image'),
+  captureScreenshot:()=>ipcRenderer.invoke('writely:screenshot'),
+  previewDocument:document=>ipcRenderer.invoke('writely:preview',document),
   onWindowSettingsChanged:callback=>{const listener=(_event,info)=>callback(info);ipcRenderer.on('writely:window-changed',listener);return ()=>ipcRenderer.removeListener('writely:window-changed',listener);},
   getWindowSettings:()=>ipcRenderer.invoke('writely:window-settings'),
   setWindowMode:mode=>ipcRenderer.invoke('writely:window-mode',mode),

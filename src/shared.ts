@@ -23,6 +23,8 @@ export interface FontReference {
   fallback?: string;
 }
 
+export interface PageLayout { size:'A4'|'A5'|'A3'|'Letter'|'Legal'|'Tabloid'|'Executive'|'Custom';marginMm:number;widthMm?:number;heightMm?:number;orientation?:'portrait'|'landscape';unit?:'mm'|'cm'|'in'|'pt';margins?:{top:number;right:number;bottom:number;left:number};gutterMm?:number;mirrored?:boolean;columns?:number;columnGapMm?:number;columnRule?:boolean;background?:string;backgroundRaster?:string;border?:boolean;watermark?:string;watermarkRaster?:string;header?:string;footer?:string;numbering?:{enabled:boolean;start:number;restart?:boolean;position:'header'|'footer';format:'arabic'|'roman'|'letters';total:boolean;firstDifferent:boolean}; }
+
 export interface DocumentFile {
   schemaVersion: 1;
   theme?: string;
@@ -32,7 +34,7 @@ export interface DocumentFile {
   updatedAt: string;
   content: JSONContent;
   styles: Record<string, StyleDefinition>;
-  page: { size: 'A4' | 'Letter'; marginMm: number };
+  page: PageLayout;
   fonts: FontReference[];
   importWarnings?: string[];
 }
@@ -58,6 +60,9 @@ export interface DesktopBridge {
   autosave(document: DocumentFile): Promise<void>;
   versions(): Promise<VersionInfo[]>;
   restoreVersion(id: string): Promise<DocumentFile>;
+  clipboardImage?():Promise<string>;
+  captureScreenshot?():Promise<string|null>;
+  previewDocument?(document:DocumentFile):Promise<void>;
   exportFile(format: ExportFormat, document: DocumentFile, html: string): Promise<{ path: string } | null>;
   listFonts(): Promise<string[]>;
   minimize(): void;

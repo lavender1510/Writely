@@ -2,7 +2,13 @@
 
 Stand: 8. November 2026. Der Funktionsumfang wird bewusst nach Version getrennt. „Grundlegend“ bedeutet unterstützte Strukturen mit möglichen Layoutverlusten, keinen vollständigen Office-Roundtrip.
 
-## Vorabversion / v0.1
+## Aktueller Stand: 0.3.0-alpha.1
+
+DOCX und ODT unterstützen grundlegende Abschnittsgeometrie, Kopf-/Fußzeilen, Tabellen und Bilder; PDF unterstützt echte gemischte Seitengrößen und native Vorschau. ODT hat einen eigenen Schreiber; RTF und EPUB nutzen lokal gebündeltes Pandoc. Unveränderte DOCX-/ODT-/EPUB-Exporte erhalten zusätzliche, per Paketfingerabdruck geprüfte Writely-Roundtripdaten. Externe Änderungen werden semantisch importiert. EPUB ist umfließend. Keine vollständige Office-Treue; siehe [aktuelle Release-Hinweise](RELEASE-NOTES.md).
+
+Die folgende ältere Matrix und die Adapterverträge dokumentieren die ursprüngliche Planung und weiterhin offene Ausbaustufen.
+
+## Historische Vorabversion / v0.1
 
 | Format | Import | Export | Konkrete Grenze |
 | --- | --- | --- | --- |

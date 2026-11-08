@@ -105,7 +105,8 @@ async function until(check, label, timeout = 15000) {
     await app.evaluate(({ dialog }, filePath) => { dialog.showOpenDialog = async () => ({ canceled: false, filePaths: [filePath] }); }, docxPath);
     await window.keyboard.press('Control+o');
     await until(async () => (await window.locator('.tiptap h1').textContent()) === 'Prüfung – Größe & Spaß', 'DOCX reimport');
-    await until(async () => (await window.getByLabel('Dokumenttitel').inputValue()) === 'desktop', 'DOCX title loaded');
+    await until(async () => (await window.locator('.toast').textContent())?.includes('Writely-Struktur'), 'DOCX import completed');
+    assert.equal(await window.getByLabel('Dokumenttitel').inputValue(),fixture.title);
     assert.equal(await window.locator('.tiptap table').count(), 1);
     assert.equal(await window.locator('.tiptap img').count(), 1);
     assert.match(await window.locator('.tiptap strong').textContent(), /fett gesetzter/);
@@ -138,6 +139,29 @@ async function until(check, label, timeout = 15000) {
       if (error.code === 'ENOENT') report.skipped.push('PDF Unicode text extraction inspection: pdftotext is not installed');
       else throw error;
     }
+
+    const mainWindowId=await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows()[0].id);
+    const mixedDoc={...fixture,page:{size:'A5',marginMm:15,widthMm:148,heightMm:210,numbering:{enabled:true,start:5,total:true}},content:{type:'doc',content:[{type:'paragraph',content:[{type:'text',text:'Hochformat'}]},{type:'layoutBreak',attrs:{kind:'section',id:'mixed-section',layout:{size:'A4',marginMm:20,orientation:'landscape',numbering:{enabled:true,start:1,total:true}}}},{type:'paragraph',content:[{type:'text',text:'Querformat'}]}]}};
+    const mixedPDF=path.join(work,'mixed-layout.pdf');
+    await app.evaluate(({dialog},filePath)=>{dialog.showSaveDialog=async()=>({canceled:false,filePath});},mixedPDF);
+    await window.evaluate(doc=>window.writely.exportFile('pdf',doc,''),mixedDoc);
+    const {PDFDocument}=require('pdf-lib');const parsed=await PDFDocument.load(await fs.readFile(mixedPDF));
+    assert.equal(parsed.getPageCount(),2);
+    assert.ok(Math.abs(parsed.getPage(0).getWidth()-148/25.4*72)<2);
+    assert.ok(Math.abs(parsed.getPage(1).getWidth()-297/25.4*72)<2);
+    try{const text=execFileSync('pdftotext',[mixedPDF,'-'],{encoding:'utf8'});assert.match(text,/Seite 5 von 2/);assert.match(text,/Seite 6 von 2/);report.checks.push('mixed PDF numbering continues across sections');}catch(error){if(error.code==='ENOENT')report.skipped.push('Mixed PDF numbering text inspection: pdftotext is not installed');else throw error;}
+    await window.evaluate(doc=>window.writely.previewDocument(doc),mixedDoc);
+    assert.ok(await app.evaluate(({BrowserWindow})=>BrowserWindow.getAllWindows().length>=2));
+    const preview=await until(()=>app.windows().find(p=>/Druckvorschau/.test(p.url())), 'PDF preview window');
+    if(process.platform==='linux')await preview.setViewportSize({width:1100,height:850});
+    const pdfFrame=await until(()=>preview.frames().find(f=>f.url().startsWith('chrome-extension://mhjfbmdgcfjbbpaeojofohoefgiehjai/')), 'native PDF viewer frame');
+    await pdfFrame.locator('viewer-toolbar').waitFor({state:'visible'});
+    await pdfFrame.locator('#plugin').waitFor({state:'attached'});
+    await until(()=>pdfFrame.evaluate(()=>document.querySelector('pdf-viewer')?.loadState_==='success'), 'native PDF viewer finishes rendering');
+    await fs.writeFile(path.join(work,'preview-dom.html'),await pdfFrame.content());
+    await preview.screenshot({path:path.join(work,'preview.png')});
+    await app.evaluate(({BrowserWindow},id)=>{for(const w of BrowserWindow.getAllWindows())if(w.id!==id)w.close();},mainWindowId);
+    report.checks.push('mixed A5 portrait/A4 landscape PDF uses genuine page boxes and opens native preview');
 
     // Close immediately after an edit, before the debounce can save it.
     await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].focus());

@@ -31,7 +31,7 @@ function safeHtml(html) {
     allowedTags: tags,
     nonTextTags: ['script', 'style', 'textarea', 'option', 'head', 'title'],
     allowedAttributes: {
-      '*': ['style', 'data-style-id', 'data-style'], a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'],
+      '*': ['style','class','data-writely-break', 'data-style-id', 'data-style'], a: ['href', 'title'], img: ['src', 'alt', 'width', 'height'],
       td: ['colspan', 'rowspan'], th: ['colspan', 'rowspan'], ol: ['start'],
     },
     allowedSchemes: ['https', 'http', 'mailto'],
@@ -44,7 +44,8 @@ function safeHtml(html) {
         'font-family': [/^[\w\s,'"-]{1,120}$/u],
         'font-size': [/^\d{1,3}(\.\d{1,2})?(px|pt)$/],
         'line-height': [/^[1-3](\.\d{1,3})?$/],
-        'text-align': [/^(left|right|center|justify)$/],
+        float:[/^(left|right|none)$/],display:[/^block$/],'max-width':[/^\d{1,3}%$/],margin:[/^\d{1,3}px$/,/^0 auto$/],
+        'text-align': [/^(left|right|center|justify)$/],padding:[/^\d+(\.\d+)?mm$/],border:[/^(none|1px solid #[a-f0-9]{6})$/i],
       },
     },
     exclusiveFilter: frame => frame.tag === 'img' && !IMAGE_SOURCE.test(frame.attribs.src || ''),
@@ -201,12 +202,14 @@ async function importFile(input, extension, fileName) {
   let buffer = input;
   if (typeof input === 'string' && !extension) { buffer = await fs.readFile(input); fileName = path.basename(input); extension = path.extname(input); }
   extension = String(extension || '').toLowerCase().replace(/^\./, '');
+  if(extension==='docx'){checkDocxArchive(buffer);const recovered=await require('./roundtrip.cjs').recover(Buffer.from(buffer));if(recovered)return {...recovered,importWarnings:[...(recovered.importWarnings||[]),'Writely-Struktur aus einem unveränderten Dokumentpaket wiederhergestellt.']};}
   const title = path.basename(fileName || 'Unbenannt', path.extname(fileName || ''));
   const warnings = [];
-  let content;
+  let content, importedPage;
   if (extension === 'docx') {
     checkDocxArchive(buffer);
-    const result = await mammoth.convertToHtml({ buffer: Buffer.from(buffer) }, {
+    const layoutImport=await require('./docx-layout.cjs').prepare(buffer);importedPage=layoutImport.page;
+    const result = await mammoth.convertToHtml({ buffer: Buffer.from(layoutImport.buffer) }, {
       externalFileAccess: false,
       includeDefaultStyleMap: true,
       styleMap: ["u => u", "p[style-name='Title'] => h1:fresh", "p[style-name='Subtitle'] => h2:fresh"],
@@ -215,7 +218,7 @@ async function importFile(input, extension, fileName) {
         return { src: `data:${image.contentType};base64,${data}` };
       }),
     });
-    content = htmlToContent(result.value);
+    content = require('./docx-layout.cjs').restore(htmlToContent(result.value),layoutImport.tokens);
     warnings.push('DOCX-Basisimport: Seitenlayout, Kopf-/Fußzeilen, Fußnoten, Kommentare und Änderungsverfolgung werden noch nicht originalgetreu übernommen. Bewahre die Originaldatei auf.');
     if (result.messages.length) warnings.push('Einige DOCX-Elemente konnten nicht vollständig übernommen werden.');
   } else {
@@ -230,7 +233,7 @@ async function importFile(input, extension, fileName) {
       warnings.push('HTML-Import: Skripte, externe Ressourcen und nicht unterstützte Layoutangaben wurden entfernt.');
     } else throw new Error(`Das Format „${extension || 'unbekannt'}“ wird in dieser Vorabversion noch nicht unterstützt. Öffne DOCX, TXT, Markdown, HTML oder eine Writely-Datei.`);
   }
-  return makeDocument(content, title, warnings);
+  const document=makeDocument(content, title, warnings);if(importedPage)document.page=importedPage;return document;
 }
 
 const escapeHtml = text => String(text ?? '').replace(/[&<>"']/g, char => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[char]);
@@ -291,12 +294,13 @@ function contentHtml(node, document) {
   const names = { bulletList: 'ul', orderedList: 'ol', listItem: 'li', blockquote: 'blockquote', table: 'table', tableRow: 'tr', tableCell: 'td', tableHeader: 'th' };
   if (names[node.type]) {
     const span = ['tableCell', 'tableHeader'].includes(node.type) ? ` colspan="${Math.max(1, Number(attrs.colspan) || 1)}" rowspan="${Math.max(1, Number(attrs.rowspan) || 1)}"` : node.type === 'orderedList' ? ` start="${Math.max(1, Number(attrs.start) || 1)}"` : '';
-    return `<${names[node.type]}${span}>${inner()}</${names[node.type]}>`;
+    return `<${names[node.type]}${span}${['tableCell','tableHeader'].includes(node.type)?` style="${attrs.background&&/^#[0-9a-f]{6}$/i.test(attrs.background)?'background-color:'+attrs.background+';':''}${Number.isFinite(attrs.paddingMm)?'padding:'+attrs.paddingMm+'mm;':''}${attrs.cellBorder==='none'?'border:none;':/^#[a-f0-9]{6}$/i.test(attrs.cellBorder||'')?'border:1px solid '+attrs.cellBorder+';':''}"`:''}>${inner()}</${names[node.type]}>`;
   }
   if (node.type === 'hardBreak') return '<br>';
+  if(node.type==='layoutBreak')return `<div class="${node.attrs?.kind==='column'?'print-column-break':'print-page-break'}" data-writely-break="${node.attrs?.kind==='column'?'column':'page'}"></div>`;
   if (node.type === 'horizontalRule') return '<hr>';
   if (node.type === 'codeBlock') return `<pre><code>${inner()}</code></pre>`;
-  if (node.type === 'image' && IMAGE_SOURCE.test(attrs.src || '')) return `<img src="${escapeHtml(attrs.src)}" alt="${escapeHtml(attrs.alt)}"${attrs.width ? ` width="${Math.max(1, Number(attrs.width) || 600)}"` : ''}${attrs.height ? ` height="${Math.max(1, Number(attrs.height) || 400)}"` : ''}>`;
+  if (node.type === 'image' && IMAGE_SOURCE.test(attrs.src || '')) return `<img src="${escapeHtml(attrs.src)}" alt="${escapeHtml(attrs.alt)}"${['left','right'].includes(attrs.float)?` style="float:${attrs.float};max-width:60%;margin:10px"`:attrs.float==='center'?' style="display:block;margin:0 auto"':''}${attrs.width ? ` width="${Math.max(1, Number(attrs.width) || 600)}"` : ''}${attrs.height ? ` height="${Math.max(1, Number(attrs.height) || 400)}"` : ''}>`;
   return inner();
 }
 
@@ -384,9 +388,9 @@ async function exportDocx(document) {
         }
         return (node.content || []).flatMap(item => blocks(item.content, config, level + 1));
       }
-      if (node.type === 'table') return [new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: (node.content || []).map(row => new TableRow({ children: (row.content || []).map(cell => {
+      if (node.type === 'table') return [new Table({...(tableWidths(node,activeLayout).length?{columnWidths:tableWidths(node,activeLayout).map(mm=>Math.round(mm/25.4*1440)),layout:docx.TableLayoutType.FIXED}:{}), width: { size: 100, type: WidthType.PERCENTAGE }, rows: (node.content || []).map((row,i) => new TableRow({tableHeader:i===0&&row.content?.some(c=>c.type==='tableHeader'), children: (row.content || []).map(cell => {
         const content = blocks(cell.content);
-        return new TableCell({ children: content.length ? content : [new Paragraph('')], columnSpan: Number(cell.attrs?.colspan) || 1, ...(cell.type === 'tableHeader' ? { shading: { fill: 'EEEAF8' } } : {}) });
+        return new TableCell({ children: content.length ? content : [new Paragraph('')], columnSpan: Number(cell.attrs?.colspan) || 1,rowSpan:Number(cell.attrs?.rowspan)||1, margins:{top:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),bottom:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),left:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440),right:Math.round((cell.attrs?.paddingMm??1.5)/25.4*1440)},...(cell.attrs?.cellBorder?{borders:Object.fromEntries(['top','bottom','left','right'].map(side=>[side,{style:cell.attrs.cellBorder==='none'?docx.BorderStyle.NONE:docx.BorderStyle.SINGLE,color:cell.attrs.cellBorder==='none'?'auto':cell.attrs.cellBorder.replace('#',''),size:6}]))}:{}), ...(cell.attrs?.background?{shading:{fill:cell.attrs.background.replace('#','')}}:cell.type === 'tableHeader' ? { shading: { fill: 'EEEAF8' } } : {}) });
       }) })) })];
       if (node.type === 'image') {
         const match = /^data:image\/(png|jpeg|jpg|gif);base64,([\s\S]+)$/.exec(attrs.src || '');
@@ -398,10 +402,11 @@ async function exportDocx(document) {
         const scale = Math.min(1, 600 / Math.max(1, desiredWidth), 900 / Math.max(1, desiredHeight));
         const width = Math.max(1, Math.round(desiredWidth * scale));
         const height = Math.max(1, Math.round(desiredHeight * scale));
-        return [new Paragraph({ children: [new ImageRun({ data, type: ['jpg', 'jpeg'].includes(match[1]) ? 'jpg' : match[1], transformation: { width, height }, altText: { title: attrs.alt || 'Bild', description: attrs.alt || 'Bild', name: attrs.alt || 'Bild' } })] })];
+        return [new Paragraph({ ...(attrs.float==='center'?{alignment:AlignmentType.CENTER}:{}), children: [new ImageRun({ data, type: ['jpg', 'jpeg'].includes(match[1]) ? 'jpg' : match[1], ...(['left','right'].includes(attrs.float)?{floating:{horizontalPosition:{relative:docx.HorizontalPositionRelativeFrom.COLUMN,align:attrs.float},verticalPosition:{relative:docx.VerticalPositionRelativeFrom.PARAGRAPH,offset:0},wrap:{type:docx.TextWrappingType.SQUARE},allowOverlap:false}}:{}), transformation: { width, height }, altText: { title: attrs.alt || 'Bild', description: attrs.alt || 'Bild', name: attrs.alt || 'Bild' } })] })];
       }
       if (node.type === 'blockquote') return blocks(node.content).map(p => p instanceof Paragraph ? p : p);
       if (node.type === 'listItem') return blocks(node.content, list, level);
+      if(node.type==='layoutBreak')return [new Paragraph({children:[attrs.kind==='column'?new docx.ColumnBreak():new docx.PageBreak()]})];
       if (node.type === 'horizontalRule' && coverSeparatorPending) {coverSeparatorPending=false;return [new Paragraph({children:[new docx.PageBreak()]})];}
       if (node.type === 'horizontalRule') return [new Paragraph({ border: { bottom: { color: 'AAAAAA', size: 6, style: 'single' } }, children: [] })];
       if (!['paragraph', 'heading', 'codeBlock'].includes(node.type)) return blocks(node.content, list, level);
@@ -418,9 +423,18 @@ async function exportDocx(document) {
       return [result];
     });
   }
-  const children = blocks(document.content?.content || []);
-  const margin = Math.round(Math.min(60, Math.max(5, Number(document.page?.marginMm) || 20)) / 25.4 * 1440);
-  const letter = document.page?.size === 'Letter';
+  const {documentSections,normalizeLayout,tableWidths}=require('./layout.mjs');
+  let activeLayout=normalizeLayout(document.page);
+  const sectionOptions=documentSections(document).map((section,sectionIndex)=>{const l=normalizeLayout(section.layout);activeLayout=l;const twips=n=>Math.round(n/25.4*1440);const number=l.numbering;const fields=number.enabled?[new TextRun('Seite '),new TextRun({children:[docx.PageNumber.CURRENT]}),...(number.total?[new TextRun(' von '),new TextRun({children:[docx.PageNumber.TOTAL_PAGES]})]:[])]:[];
+    const floating={horizontalPosition:{relative:docx.HorizontalPositionRelativeFrom.PAGE,align:'center'},verticalPosition:{relative:docx.VerticalPositionRelativeFrom.PAGE,align:'center'},behindDocument:true,allowOverlap:true,wrap:{type:docx.TextWrappingType.NONE}};
+    const imageParagraph=(src,width,height)=>new Paragraph({children:[new ImageRun({data:Buffer.from(src.split(',')[1],'base64'),type:'png',transformation:{width,height},floating})]});
+    const background=l.backgroundRaster?imageParagraph(l.backgroundRaster,Math.round(l.widthMm/25.4*96),Math.round(l.heightMm/25.4*96)):null;
+    const watermark=l.watermarkRaster?imageParagraph(l.watermarkRaster,Math.min(600,l.widthMm/25.4*96*.8),Math.min(600,l.widthMm/25.4*96*.8)*.7):null;
+    const hf=(text,showNumber,Type)=>new Type({children:[...(Type===docx.Header?[background,watermark].filter(Boolean):[]),new Paragraph({alignment:AlignmentType.CENTER,children:[new TextRun(text+(text&&showNumber?' · ':'')),...(showNumber?fields:[])]})]});
+    const border={style:'single',size:6,color:'999999'};
+    const sectionChildren=blocks(section.blocks);
+    return {properties:{type:docx.SectionType.NEXT_PAGE,titlePage:number.firstDifferent,column:{count:l.columns,space:twips(l.columnGapMm),separate:l.columnRule},page:{size:{width:twips(Math.min(l.widthMm,l.heightMm)),height:twips(Math.max(l.widthMm,l.heightMm)),orientation:l.orientation==='landscape'?docx.PageOrientation.LANDSCAPE:docx.PageOrientation.PORTRAIT},margin:{top:twips(l.margins.top),bottom:twips(l.margins.bottom),left:twips(l.margins.left),right:twips(l.margins.right),gutter:twips(l.gutterMm)},pageNumbers:{...(sectionIndex===0||number.restart?{start:number.start}:{}),formatType:number.format==='roman'?docx.NumberFormat.UPPER_ROMAN:number.format==='letters'?docx.NumberFormat.UPPER_LETTER:docx.NumberFormat.DECIMAL},...(l.border?{borders:{pageBorderTop:border,pageBorderBottom:border,pageBorderLeft:border,pageBorderRight:border}}:{})}},headers:{default:hf(l.header,number.position==='header',docx.Header),first:hf(l.header,false,docx.Header)},footers:{default:hf(l.footer,number.position==='footer',docx.Footer),first:hf(l.footer,false,docx.Footer)},children:sectionChildren.length?sectionChildren:[new Paragraph('')]};
+  });
   const semanticDefaults = Object.fromEntries(Array.from({ length: 6 }, (_, i) => i + 1).filter(level => document.styles?.[`h${level}`]).map(level => [`heading${level}`, { run: runStyle(resolveStyle(document, `h${level}`)), paragraph: paragraphStyle(resolveStyle(document, `h${level}`)) }]));
   const file = new Document({
     ...(document.theme==='Dunkel'?{background:{color:'25212d'}}:{}),
@@ -430,13 +444,14 @@ async function exportDocx(document) {
       paragraphStyles: Object.entries(document.styles || {}).map(([key, style]) => ({ id: customIds[key], name: String(style.name || key), basedOn: customIds[style.basedOn] || 'Normal', run: runStyle(resolveStyle(document, key)), paragraph: paragraphStyle(resolveStyle(document, key)) })),
     },
     numbering: { config: numbering },
-    sections: [{ properties: { page: { size: { width: letter ? 12240 : 11906, height: letter ? 15840 : 16838 }, margin: { top: margin, right: margin, bottom: margin, left: margin } } }, children: children.length ? children : [new Paragraph('')] }],
+    settings:{mirrorMargins:!!document.page.mirrored},
+    sections: sectionOptions,
   });
-  return Packer.toBuffer(file);
+  return require('./roundtrip.cjs').attach(await Packer.toBuffer(file),document);
 }
 
 async function exportDocument(format, document) {
   return format === 'docx' ? exportDocx(document) : exportText(document, format);
 }
 
-module.exports = { importFile, exportDocument, exportDocx, exportText, safeHtml, htmlToContent, contentHtml, exportStyles };
+module.exports = { importFile, exportDocument, exportDocx, exportText, safeHtml, htmlToContent, contentHtml, exportStyles, imageDimensions };

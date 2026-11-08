@@ -1,10 +1,10 @@
 # Writely
 
-Eine lokale Schreibapp mit deutscher Windows-Oberfläche. **0.2.1-alpha.1** bringt einen Startbildschirm, Dokumentenbibliothek, Ordner, mehr Vorlagen, Themes, Cover und lokale Formatkonvertierung.
+Eine lokale Schreibapp mit deutscher Windows-Oberfläche. **0.3.0-alpha.1** ergänzt Seitenlayouts, Abschnitte, eine PDF-Druckvorschau, Seitenbereiche sowie neue Tabellen-, Bild- und Grafikwerkzeuge. Startbildschirm, Bibliothek, Vorlagen und lokale Konvertierung bleiben enthalten.
 
 ![Writely Startbildschirm](docs/images/startbildschirm.png)
 
-Neu in 0.2.1: Unter **Einstellungen → Fenster & Bildschirme** zwischen Fenster, maximiert und Vollbild wechseln und Writely auf einen anderen Bildschirm verschieben. Zurück zum Fenster: `Strg+Umschalt+F11`.
+Weiterhin verfügbar: Unter **Einstellungen → Fenster & Bildschirme** zwischen Fenster, maximiert und Vollbild wechseln und Writely auf einen anderen Bildschirm verschieben. Zurück zum Fenster: `Strg+Umschalt+F11`.
 
 ## Download
 
@@ -14,7 +14,9 @@ Im [GitHub-Release](https://github.com/lavender1510/Writely/releases) das Window
 
 Rich Text mit Überschriften, Listen, Tabellen, Bildern und Links; globale Styles; Fokus-/Darkmodus; Befehlspalette; Suchen/Ersetzen; Auto-Save/Recovery und lokale Versionen. Dazu Bibliothek mit Ordnern, Suche, Anheften, Vorlagen, Cover und Themes.
 
-Import/Export: .writely, DOCX, Text, Markdown, HTML und grundlegendes ODT/RTF/EPUB. PDF-Export über Chromium. Pandoc ist im Windows-Paket samt Lizenz und korrespondierendem Quellcode enthalten. Konvertierung erfolgt lokal.
+Import/Export: .writely, DOCX, Text, Markdown, HTML und grundlegendes ODT/RTF/EPUB. DOCX und ODT exportieren Abschnittslayouts, Tabellen und Bilder. PDF-Export und Druckvorschau verwenden Chromium mit echten gemischten Seitengrößen. Pandoc ist im Windows-Paket samt Lizenz und korrespondierendem Quellcode enthalten. Konvertierung erfolgt lokal.
+
+[Layout-Update und Entwicklungsstand](docs/LAYOUT.md): Formate A3/A4/A5, Letter, Legal, Tabloid, Executive und eigene Maße; individuelle Ränder, Spalten, Kopf-/Fußzeilen und Seitennummern. Seitenbereiche lassen sich einfügen, kopieren, löschen und umordnen. Die Schreibansicht bleibt kontinuierlich; automatische Druckseiten zeigt die PDF-Vorschau.
 
 **Strg+S aktualisiert die gewählte Datei.** Automatische Wiederherstellung und Bibliothek sind zusätzliche lokale Sicherungen.
 

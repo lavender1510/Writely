@@ -21,6 +21,9 @@ Die Originaltexte wurden unver√§ndert aus den installierten Fontsource-Paketen √
 | Mammoth | 1.13.0 | BSD-2-Clause |
 | `font-list` | 2.1.0 | MIT |
 | `htmlparser2` | 10.1.0 | MIT |
+| `dom-serializer` | 2.0.0 | MIT |
+| JSZip | 3.10.1 | MIT / GPL-3.0-or-later (dual) |
+| `pdf-lib` | 1.17.1 | MIT |
 | Lucide React | 0.468.0 | ISC |
 | Marked | 17.0.6 | MIT |
 | `sanitize-html` | 2.18.1 | MIT |

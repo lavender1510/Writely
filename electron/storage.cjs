@@ -6,17 +6,17 @@ const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_NODES = 250_000;
 const MAX_DEPTH = 100;
 const NODE_ATTRIBUTES = {
-  doc: [], paragraph: ['styleId', 'textAlign'], heading: ['level', 'styleId', 'textAlign'],
+  doc: ['pageLayout'], layoutBreak:['kind','id','layout'], paragraph: ['styleId', 'textAlign'], heading: ['level', 'styleId', 'textAlign'],
   blockquote: ['styleId'], bulletList: [], orderedList: ['start', 'type'], listItem: [],
   hardBreak: [], horizontalRule: [], codeBlock: ['language'], table: [], tableRow: [],
-  tableCell: ['colspan', 'rowspan', 'colwidth', 'align'], tableHeader: ['colspan', 'rowspan', 'colwidth', 'align'],
-  image: ['src', 'alt', 'title', 'width', 'height'], text: [],
+  tableCell: ['colspan', 'rowspan', 'colwidth', 'align','background','cellBorder','paddingMm'], tableHeader: ['colspan', 'rowspan', 'colwidth', 'align','background','cellBorder','paddingMm'],
+  image: ['src', 'alt', 'title', 'width', 'height','drawing','originalSrc','imageEdit','float'], text: [],
 };
 const MARK_ATTRIBUTES = {
   bold: [], italic: [], underline: [], strike: [], code: [], subscript: [], superscript: [],
   link: ['href', 'target', 'rel', 'class', 'title'], textStyle: ['color', 'fontFamily', 'fontSize'], highlight: ['color'],
 };
-const BLOCK_TYPES = new Set(['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'horizontalRule', 'codeBlock', 'table', 'image']);
+const BLOCK_TYPES = new Set(['paragraph', 'heading', 'blockquote', 'bulletList', 'orderedList', 'horizontalRule', 'codeBlock', 'table', 'image','layoutBreak']);
 const INLINE_TYPES = new Set(['text', 'hardBreak']);
 const SAFE_IMAGE = /^data:image\/(png|jpe?g|webp|gif);base64,[a-zA-Z0-9+/=\s]+$/;
 const SAFE_COLOR = /^(#[a-f\d]{3}|#[a-f\d]{4}|#[a-f\d]{6}|#[a-f\d]{8}|[a-z]{1,30}|rgba?\([\d\s.,%]+\))$/i;
@@ -43,6 +43,8 @@ function validateContentNode(node, parent) {
   for (const key of Object.keys(node)) if (!['type', 'attrs', 'content', 'marks', 'text'].includes(key)) invalid(`Die Eigenschaft „${key}“ von „${node.type}“ wird noch nicht unterstützt.`);
   validateAttributes(node.attrs, NODE_ATTRIBUTES[node.type], node.type);
   const attrs = node.attrs || {};
+  if(node.type==='layoutBreak'){if(!['page','section','column'].includes(attrs.kind)||typeof attrs.id!=='string'||attrs.id.length>128)invalid('Der Umbruch ist ungültig.');if(attrs.layout)require('./layout.mjs').validateLayout(attrs.layout);}
+  if(node.type==='doc'&&attrs.pageLayout)require('./layout.mjs').validateLayout(attrs.pageLayout);
   if (attrs.styleId != null && (typeof attrs.styleId !== 'string' || !/^[a-zA-Z][\w-]{0,60}$/.test(attrs.styleId))) invalid('Die Formatvorlagenreferenz ist ungültig.');
   for (const key of ['textAlign', 'align']) if (attrs[key] != null && !['left', 'right', 'center', 'justify'].includes(attrs[key])) invalid('Die Absatzausrichtung ist ungültig.');
   if (node.type === 'heading' && attrs.level !== undefined && (!Number.isInteger(attrs.level) || attrs.level < 1 || attrs.level > 6)) invalid('Die Überschriftenebene ist ungültig.');
@@ -55,7 +57,12 @@ function validateContentNode(node, parent) {
     for (const key of ['colspan', 'rowspan']) if (attrs[key] !== undefined && (!Number.isInteger(attrs[key]) || attrs[key] < 1 || attrs[key] > 100)) invalid('Die verbundenen Tabellenzellen sind ungültig.');
     if (attrs.colwidth != null && (!Array.isArray(attrs.colwidth) || attrs.colwidth.length > 100 || attrs.colwidth.some(width => !Number.isFinite(width) || width < 1 || width > 100_000))) invalid('Die Tabellenspaltenbreiten sind ungültig.');
   }
+  if(attrs.cellBorder!=null&&attrs.cellBorder!=='none'&&!SAFE_COLOR.test(attrs.cellBorder))invalid('Der Zellrahmen ist ungültig.');
+  if(attrs.paddingMm!=null&&(!Number.isFinite(attrs.paddingMm)||attrs.paddingMm<0||attrs.paddingMm>30))invalid('Der Zellabstand ist ungültig.');
+  if(attrs.background!=null&&!SAFE_COLOR.test(attrs.background))invalid('Die Zellfarbe ist ungültig.');
   if (node.type === 'image') {
+    if(attrs.originalSrc!=null&&!SAFE_IMAGE.test(attrs.originalSrc))invalid('Das Originalbild ist ungültig.');
+    if(attrs.float!=null&&!['inline','left','right','center'].includes(attrs.float))invalid('Der Bildumfluss ist ungültig.');
     if (typeof attrs.src !== 'string' || !SAFE_IMAGE.test(attrs.src)) invalid('Bilder müssen als eingebettetes PNG-, JPEG-, WEBP- oder GIF-Bild vorliegen. Externe Bildquellen werden nicht geladen.');
     for (const key of ['alt', 'title']) if (attrs[key] != null && (typeof attrs[key] !== 'string' || attrs[key].length > 10_000)) invalid('Die Bildbeschreibung ist ungültig.');
     for (const key of ['width', 'height']) if (attrs[key] != null && (!/^\d{1,6}$/.test(String(attrs[key])) || Number(attrs[key]) < 1 || Number(attrs[key]) > 100_000)) invalid('Die Bildabmessungen sind ungültig.');
@@ -86,7 +93,7 @@ function validateContentNode(node, parent) {
   }
   if (node.content !== undefined && !Array.isArray(node.content)) invalid('Die Dokumentstruktur ist ungültig.');
   const content = node.content || [];
-  if (['text', 'image', 'hardBreak', 'horizontalRule'].includes(node.type) && content.length) invalid('Dieses Dokumentelement darf keine Unterelemente enthalten.');
+  if (['text', 'image', 'hardBreak', 'horizontalRule','layoutBreak'].includes(node.type) && content.length) invalid('Dieses Dokumentelement darf keine Unterelemente enthalten.');
   if (['doc', 'blockquote', 'tableCell', 'tableHeader', 'listItem', 'bulletList', 'orderedList', 'table', 'tableRow'].includes(node.type) && !content.length) invalid('Ein Strukturelement des Dokuments ist leer.');
   const allowed = node.type === 'paragraph' || node.type === 'heading' ? INLINE_TYPES
     : node.type === 'codeBlock' ? new Set(['text'])
@@ -118,7 +125,7 @@ function validateDocument(value) {
     if (style.color !== undefined && (typeof style.color !== 'string' || !SAFE_COLOR.test(style.color))) invalid('Die Farbe einer Formatvorlage ist ungültig.');
     if (style.lineHeight !== undefined && (!Number.isFinite(style.lineHeight) || style.lineHeight < 1 || style.lineHeight > 3)) invalid('Der Zeilenabstand einer Formatvorlage ist ungültig.');
   }
-  if (!plain(value.page) || !['A4', 'Letter'].includes(value.page.size) || !Number.isFinite(value.page.marginMm) || value.page.marginMm < 5 || value.page.marginMm > 60) invalid('Die Seiteneinstellungen sind ungültig.');
+  try{require('./layout.mjs').validateLayout(value.page);}catch(error){invalid(error.message);}
   if (!Array.isArray(value.fonts) || value.fonts.length > 1000 || value.fonts.some(font => !plain(font) || typeof font.family !== 'string' || font.family.length > 200)) invalid('Die Schriftartenliste ist ungültig.');
   let nodes = 0;
   function inspect(item, depth) {

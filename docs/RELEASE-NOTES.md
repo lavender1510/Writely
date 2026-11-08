@@ -1,35 +1,43 @@
-# Writely 0.2.0-alpha.1 · Bibliothek & Gestaltung
+# Writely 0.3.0-alpha.1 · Seitenlayout & Dokumentwerkzeuge
 
-Dieses Update erweitert die lokale Windows-Schreibapp. Die folgenden Funktionen sind umgesetzt; die vollständige Produktspezifikation bleibt größer als dieser Vorabrelease.
+Erste Ausbaustufe der Dokument- und Layoutwerkzeuge. Der vollständige Layoutdesigner ist damit noch nicht abgeschlossen.
 
 ## Neu
 
-- Startbildschirm statt sofortigem Editor; eine vorhandene Recovery-Sitzung kann ausdrücklich fortgesetzt werden.
-- Lokale Bibliothek mit Kacheln/Listen, Textvorschau, Änderungsdatum, Wortanzahl, Suche, Anheften und Sortierung nach Name, Zeit, Dateityp und Größe. Einträge werden in Gruppen von 60 angezeigt.
-- Verschachtelte Ordner mit Farben, Erstellen, Umbenennen, Verschieben und Entfernen. Dokumente bleiben beim Entfernen eines Ordners erhalten. Dokumente lassen sich zuordnen, per Drag & Drop verschieben und duplizieren.
-- 20 bearbeitbare Startvorlagen, eigene Dokumentvorlagen und lokal gespeicherte Vorlagensätze.
-- Erweiterte benannte Styles, Style-Duplikate, Umbenennen und Entfernen mit Ersatz durch Normaltext; sieben Dokumentthemes.
-- Coverdialog mit bearbeitbarem Titel, Untertitel, Autor, Datum, Akzentfarbe und lokalem Logo/Bild. Cover stehen am Anfang; DOCX, ODT und PDF berücksichtigen den Seitenwechsel.
-- Lokaler Konverter mit Zielformat, Rändern und nativem Ausgabedialog. DOCX, PDF, HTML, Markdown, TXT sowie grundlegendes ODT, RTF und EPUB.
-- Pandoc 3.13 ist im Windows-Paket enthalten. Konvertierung braucht keinen Upload. Lizenz und korrespondierender Pandoc-Quellcode liegen im Paket unter `tools/`.
-- Einheitliches vorhandenes Projektlogo als Windows-ICO mit mehreren Größen, Fensterlogo, Installer-Logo und Verknüpfungen. Setup richtet eine Writely-Dateizuordnung ein; beim Start mit einer .writely-Datei wird diese geöffnet.
+- **Layout → Seite einrichten:** A3/A4/A5, Letter, Legal, Tabloid, Executive, eigene Maße; Hoch-/Querformat; Millimeter, Zentimeter, Zoll und Punkt. Individuelle oder gleiche Ränder, Bundsteg und gespiegelte Ränder.
+- Abschnittsumbrüche für unterschiedliche Papierformate und Ausrichtungen innerhalb einer Datei. Einstellungen für Dokumentstandard, aktuellen oder neuen Abschnitt.
+- Spaltenzahl und Abstand, Spaltentrennlinie, Hintergrundfarbe, Seitenrahmen, Textwasserzeichen und einfache Kopf-/Fußzeilen.
+- Automatische Seitennummern im Kopf oder Fuß, arabisch/römisch/Buchstaben, Startwert, fortlaufende oder neu beginnende Abschnitte, erste Seite ohne Nummer und „Seite X von Y“.
+- **Ansicht → Seitenbereiche:** manuelle Seiten-/Abschnittsbereiche auswählen, davor/danach einfügen, duplizieren, löschen und per Drag & Drop umordnen. Formatierter Inhalt und Abschnittslayouts bleiben erhalten. Undo/Redo für neue Dokumentaktionen.
+- **Strg+P / Druckvorschau:** tatsächlich erzeugte PDF mit automatischer Pagination im nativen PDF-Betrachter. Miniaturen, Zoom, Speichern und Drucken mit Druckerauswahl/Skalierung. Gemischte Papiergrößen werden als echte unterschiedliche PDF-Seitenboxen ausgegeben.
+- Erweiterte deutsche Menüs: Bearbeiten, Ansicht, Einfügen, Format, Tabelle, Layout, Verweise, Überprüfen, Hilfe. Neue Hauptaktionen in der Befehlspalette.
+- Tabellenwahl mit bis zu 2.000 Zellen je Einfügevorgang. Zeilen/Spalten hinzufügen, löschen, bewegen und duplizieren; Zellen verbinden/trennen; Kopfzeile, Zellfarben, Rahmen und Abstände. Bewegungen zusammengeführter Zellen melden eine klare Einschränkung.
+- Bilder aus Datei, nativer Zwischenablage oder Bildschirmaufnahme. Bilddialog für Breite, Beschnitt, 90°-Drehung, Spiegelung, Helligkeit, Kontrast, Rahmen, Alternativtext und einfachen Textumfluss. Das Original bleibt für spätere Bearbeitung erhalten.
+- Einfache Formen, Prozess-/Listen-/Zyklus-/Hierarchie-/Vergleichs-/Zeitachsengrafiken und Balken-/Linien-/Kreis-/Flächen-/Punktdiagramme. Lokale Rasterbilder; Beschriftung, Farbe und Daten können über denselben Grafikdialog erneut geändert werden.
+- Sonderzeichen, Typografiezeichen, Emojis und statisches Datum/Uhrzeit.
 
-## Installation
+## Dateiformate
 
-Für die normale Windows-Installation die Datei `Writely-0.2.0-alpha.1-Setup-x64.exe` verwenden. Alternativ das portable Windows-ZIP vollständig entpacken und Writely.exe starten. Beide Builds sind unsignierte Vorabversionen.
+DOCX exportiert Abschnittsmaße, Ränder, Spalten, Kopf-/Fußzeilen, Seitenfelder, unterstützte Tabellenformatierung und Bilder. ODT erhält einen eigenen ODF-1.3-Schreiber mit Masterseiten, Grundstyles, Tabellen und Bildern. Externe DOCX-/ODT-Importe lesen grundlegende Abschnittslayouts zusätzlich zum semantischen Inhalt. Das ersetzt keine vollständige Word-/LibreOffice-Kompatibilität.
 
-Vorhandene .writely-Dateien bleiben lesbar. Die bisherigen Recovery- und Versionsdateien bleiben erhalten. Strg+S speichert die selbst gewählte Datei; die lokale Bibliothek und Wiederherstellung halten zusätzlich Arbeitsstände.
+Unveränderte Writely-Exporte nach DOCX, ODT und EPUB enthalten zusätzliche Writely-Metadaten für den genauen Rückimport des eigenen Modells. Ein Paketfingerabdruck verhindert, dass nach externen Änderungen veralteter Inhalt wiederhergestellt wird; dann greift der normale, möglicherweise vereinfachende Import. Metadaten können die Dateigröße erhöhen. RTF bleibt ein grundlegender Pandoc-Import/-Export. EPUB bleibt umfließend, ohne feste Papierpagination. TXT/Markdown verlieren Layoutinformationen.
 
-## Wichtige Grenzen
+## Grenzen dieses Releases
 
-ODT/RTF/EPUB übertragen unterstützte semantische Inhalte. Das ist keine vollständige, originalgetreue Office-Kompatibilität: Kopf-/Fußzeilen, echte Fußnoten, Kommentare, Änderungsverfolgung, komplexe Tabellen und exakte Positionierung sind noch nicht vollständig im Editor modelliert. Importmeldungen weisen auf mögliche Verluste hin. Quelldateien werden beim Konvertieren nicht überschrieben.
+Die Schreibansicht bleibt kontinuierlich. Seitenbereiche zeigen manuelle Grenzen und Textausschnitte, keine Miniaturen sämtlicher automatisch umbrochener Seiten. Unterschiedliche Abschnittsbreiten werden verbindlich in der PDF-Vorschau dargestellt. Ein Bereich kann mehrere Druckseiten umfassen. Einzelne Druckseiten können im PDF-Druckdialog ausgewählt werden; separater Export einzelner Editorbereiche ist offen.
 
-PDF-Import, OCR und Stapelkonvertierung sind noch nicht verfügbar. Cover-Hintergrundbilder, frei positionierbare Coverelemente und beliebige Seitenhintergründe folgen später. EPUB ist umfließend und übernimmt keine feste Papierpagination. Die Coverfunktion ergänzt bearbeitbare Inhalte; sie bietet noch keinen vollständigen Layoutdesigner.
+Noch offen: echte Fuß-/Endnoten, dynamische Querverweise, Lesezeichen, automatische Abbildungs-/Tabellen-/Literaturverzeichnisse, Formeleditor, QR-/Barcodes, Freihand, frei positionierbare Vektorobjekte/Textboxen, Ebenen/Gruppen, Raster/Guides, ungleiche Spalten und Medienanhänge. Inhaltsverzeichnis und Beschriftungen bleiben Text und müssen nach Änderungen neu erzeugt werden. Formen/Diagramme sind Bilder, keine Office-SmartArt-/Chart-Objekte.
 
-Die Bibliothek organisiert lokale Kopien/Arbeitsstände und Referenzen auf gewählte Dateien. Ordneraktionen verschieben keine ursprünglichen Explorer-Dateien. Bibliotheksindex und benutzerdefinierte Vorlagen liegen lokal als versionierbare JSON-Daten im App-Datenordner; eine SQLite-Suchdatenbank ist ein späterer Ausbau. Bibliothekseinträge können entfernt werden, ohne die Originaldatei zu löschen. Das erneute Öffnen über eine Dateizuordnung bei bereits laufender App ist noch eingeschränkt.
+Komplexe externe Tabellen, schwebende Objekte, Rich-Text-Kopfzeilen, Noten, Kommentare und Änderungsverfolgung sind nicht verlustfrei zugesichert. PDF/A, PDF/UA, eine vollständige Word-/LibreOffice-/Reader-Abnahme und Leistungsnachweise für hunderte Seiten stehen aus. Bei zusammengefügten Abschnitts-PDFs werden Outline-Lesezeichen nicht zugesichert. PDF-Import/OCR und Stapelkonvertierung bleiben offen.
 
-Die kleinen Vorschauen zeigen die ersten Textblöcke, keine exakte paginierte Druckvorschau. Gespeicherte Vorlagensätze besitzen noch keinen umfassenden Verwaltungsdialog. Einige Spezialstyles wie Fußnote und Checkliste sind Darstellungsregeln, keine eigene Noten- oder Aufgabenfunktion. Große Bibliotheken und lange Dokumente benötigen weitere Leistungsbenchmarks.
+## Installation und Daten
+
+Windows-Setup ausführen oder portables ZIP vollständig entpacken. Pandoc, Lizenz und korrespondierender Quellcode sind enthalten. Die App benötigt im Betrieb keinen Upload und kein Internet. Der Build ist eine unsignierte Vorabversion.
+
+Bestehende Dokumente, Bibliothek, Auto-Save, Recovery, Versionen und Fenster-/Monitoreinstellungen bleiben im bisherigen lokalen App-Datenordner. Neue Layoutdaten erweitern das bestehende Modell additiv. Ältere Writely-Versionen verstehen neue Layoutknoten möglicherweise nicht; neue Dateien mit 0.3 oder neuer öffnen.
 
 ## Prüfung
 
-Gezielte Tests decken Ordnerzyklen, rekursives Entfernen ohne Dokumentverlust, Bibliotheksaktualisierungen, Vorlagen, Themes, Cover, ODT-/RTF-/EPUB-Roundtrips sowie die bestehenden Dokument-/Recovery-Funktionen ab. Browserprüfungen testen neue Bibliotheks- und Coverabläufe zusätzlich zum bisherigen Editor. Der Windows-CI-Lauf prüft Build, Konverter und echte Desktop-Abläufe vor der Veröffentlichung.
+Modell-/Konvertertests: Papiermaße, Validierung, Umbrüche, eigene/externe DOCX-/ODT-Abschnitte, Metadatenfingerabdruck, beschädigte Metadaten und bestehende Speicher-/Recovery-Funktionen. Browsertests: Layout-Undo/Redo, Seitenbereiche, Tabellenkopien, Bildbearbeitung und bestehende Editor-/Bibliotheksabläufe. Echter Desktoptest: DOCX, PDF, gemischte Seitengrößen und native Vorschau. Veröffentlichung erst nach erfolgreichem Windows-CI-Lauf des exakten Release-Commits; das Windows-Testprotokoll liegt als Release-Datei bei.
+
+Vorherige Hinweise: [0.2.1 Fenster & Monitore](RELEASE-0.2.1.md), [0.2 Bibliothek & Gestaltung](RELEASE-0.2.md). [Technischer Stand und nächste Schritte](LAYOUT.md).
