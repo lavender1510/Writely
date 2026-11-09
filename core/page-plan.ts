@@ -6,7 +6,7 @@ export function planPages(fragments:readonly Fragment[],initialCapacity:number):
   let capacity=initialCapacity;const pages:PlannedPage[]=[];
   let page:PlannedPage|undefined,previous=-1;
   for(const f of fragments){
-    if(!Number.isFinite(f.height)||f.height<0||!Number.isInteger(f.from)||!Number.isInteger(f.to)||f.from<previous||f.to<f.from||f.capacity!==undefined&&(!Number.isFinite(f.capacity)||f.capacity<=0))throw new Error('Ein Layoutfragment ist ungültig.');
+    if(!Number.isFinite(f.height)||f.height<0||!Number.isInteger(f.from)||!Number.isInteger(f.to)||f.from<0||f.from<previous||f.to<f.from||f.capacity!==undefined&&(!Number.isFinite(f.capacity)||f.capacity<=0))throw new Error('Ein Layoutfragment ist ungültig.');
     previous=f.to;
     const newSection=f.capacity!==undefined&&f.capacity!==capacity;
     if(f.capacity!==undefined)capacity=f.capacity;
@@ -17,6 +17,7 @@ export function planPages(fragments:readonly Fragment[],initialCapacity:number):
 }
 /** Half-open position intervals; shared boundaries belong to the following page. */
 export function pageAtPosition(pages:readonly PlannedPage[],position:number):number|null{
+  if(!Number.isInteger(position)||position<0)return null;
   let low=0,high=pages.length-1;
   while(low<=high){const mid=(low+high)>>>1,p=pages[mid];if(position<p.from)high=mid-1;else if(position>=p.to&&mid<pages.length-1)low=mid+1;else return position<=p.to?mid:null;}
   return null;
