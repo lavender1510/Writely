@@ -39,3 +39,14 @@ test('browser Office exporter downloads a real DOCX with intact private document
   await page.locator('.secure-card').filter({hasText:'External'}).locator('.secure-card-open').click();
   await expect(page.locator('.secure-prose table')).toBeVisible();await expect(page.locator('.secure-prose img[src^="data:image"]')).toHaveCount(1);
 });
+
+test('shared paragraph manager changes spacing in the actual mobile editor',async({page})=>{
+  await page.getByRole('button',{name:'Erweiterte Werkzeuge',exact:true}).click();
+  await page.getByRole('button',{name:'Gestalten',exact:true}).click();
+  await page.getByRole('button',{name:'Styles, Themes und Cover',exact:true}).click();
+  await page.getByRole('button',{name:'Styles',exact:true}).click();
+  await page.getByLabel('Abstand davor (pt)',{exact:true}).fill('12');
+  await page.getByLabel('Einzug links (mm)',{exact:true}).fill('10');
+  const value=await page.locator('.secure-prose > p').first().evaluate(el=>({margin:getComputedStyle(el).marginTop,left:getComputedStyle(el).marginLeft}));
+  expect(parseFloat(value.margin)).toBeCloseTo(16,1);expect(parseFloat(value.left)).toBeCloseTo(37.8,0);
+});

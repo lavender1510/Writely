@@ -50,3 +50,7 @@ B: Annotationen/Revisionen erst nach stabilem Positionsmapping; Rich-Text-Noten 
 Absatzvorlagen: gemeinsam validierte numerische Einzüge/Abstände, Ausrichtung, Zusammenhalten und Umbruch davor; Style-Manager auf Windows/Android, CSS, HTML, DOCX und ODT. ODT übernimmt nun auch Absatzformatierung auf dem ersten Absatz eines Abschnitts, ohne Masterpage-/Seitennummerierungsattribute zu überschreiben. Keine neue Dokumentversion nötig: additive optionale Style-Eigenschaften; unbekannte Dokumentknoten bleiben weiterhin gesperrt.
 
 Der neue Seitenplan-Kern verarbeitet ausschließlich bereits gemessene Zeilen-/Zeilenfragmenthöhen, bewahrt Eingaben und Editorpositionen, berücksichtigt Abschnittskapazitäten/Umbrüche und meldet Überläufe. 50/100/500 Seiten in Kernprüfungen sind keine echte Editor-Performance- oder Drucklayoutmessung. Keine neue „Seitenansicht“-Schaltfläche, bevor DOM-Messung/Zeilenteilung/Fußnoten und Viewportintegration tatsächlich funktionieren. Meilenstein A insgesamt bleibt offen.
+
+## Lokale A1-Prüfungen
+
+Produktionsbuild/TypeScript bestanden. 80 Unit-Tests bestanden; 23 bisherige Browserprüfungen bestanden. Der ergänzte vierte Paritätstest betätigt den gemeinsamen Style-Manager auf Smartphonebreite und prüft die tatsächlich gerenderten Abstände in Pixeln; alle vier gezielten Paritätstests bestanden. CI wiederholt die vollständige Suite sowie Windows-/Android-Builds. Verbindliche Lauf- und Artefaktlinks stehen im PR. Die Seitentests messen nur den Planungskern, keine 500-Seiten-Schreibleistung.
