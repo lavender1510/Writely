@@ -1,7 +1,7 @@
 {
   "name": "writely",
-  "version": "0.4.0-alpha.1",
-  "description": "Writely – ein ruhiger Ort für gute Gedanken. Lokale Schreibapp für Windows.",
+  "version": "0.5.0-prototype.1",
+  "description": "Writely \u2013 ein ruhiger Ort f\u00fcr gute Gedanken. Lokale Schreibapp f\u00fcr Windows.",
   "author": "Writely contributors",
   "private": true,
   "main": "electron/main.cjs",
@@ -15,14 +15,21 @@
     "package:win": "npm run build && electron-builder --win zip --x64 --publish never",
     "package:dir": "npm run build && electron-builder --dir --publish never",
     "test:desktop": "node scripts/desktop-smoke.cjs",
-    "pretest:e2e": "npm run build"
+    "pretest:e2e": "npm run build",
+    "android:sync": "npm run build && node scripts/android-sync.cjs",
+    "android:build": "npm run android:sync && cd android && ./gradlew --no-daemon assembleDebug",
+    "test:secure-desktop": "node --import tsx scripts/secure-desktop-smoke.mts"
   },
   "dependencies": {
+    "@capacitor/android": "^8.6.0",
+    "@capacitor/app": "^8.1.2",
+    "@capacitor/core": "^8.6.0",
     "dictionary-de": "^3.0.0",
     "dictionary-en": "^4.0.0",
     "docx": "^9.5.1",
     "dom-serializer": "^2.0.0",
     "font-list": "^2.0.1",
+    "hash-wasm": "^4.13.0",
     "htmlparser2": "^10.0.0",
     "jszip": "^3.10.1",
     "mammoth": "^1.11.0",
@@ -33,6 +40,7 @@
     "turndown": "^7.2.2"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.6.0",
     "@fontsource/inter": "^5.2.8",
     "@fontsource/source-serif-4": "^5.2.8",
     "@playwright/test": "^1.56.1",
@@ -67,7 +75,8 @@
       "electron/**/*",
       "package.json",
       "THIRD_PARTY_NOTICES.md",
-      "licenses/**/*"
+      "licenses/**/*",
+      "core/**/*.mjs"
     ],
     "asar": true,
     "win": {

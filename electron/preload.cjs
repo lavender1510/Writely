@@ -1,7 +1,13 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 let flushCallback;
+let secureFlushCallback;
 ipcRenderer.on('writely:flush', async (_event, token) => {
+  if(secureFlushCallback){
+    try{await secureFlushCallback();await ipcRenderer.invoke('writely:flush-reply',token,{secureFlush:true,failed:false});}
+    catch{await ipcRenderer.invoke('writely:flush-reply',token,{secureFlush:true,failed:true});}
+    return;
+  }
   try {
     const document = flushCallback ? await flushCallback() : undefined;
     await ipcRenderer.invoke('writely:flush-reply', token, document);
@@ -13,6 +19,11 @@ ipcRenderer.on('writely:flush', async (_event, token) => {
 // Expose only the capability-specific document API; never expose raw IPC or Node.
 contextBridge.exposeInMainWorld('writely', Object.freeze({
   platform: process.platform,
+  onSecureFlush:callback=>{secureFlushCallback=callback;return()=>{if(secureFlushCallback===callback)secureFlushCallback=undefined;};},
+  sealedRead:()=>ipcRenderer.invoke('writely:sealed-read'),
+  sealedWrite:text=>ipcRenderer.invoke('writely:sealed-write',text),
+  secureOpen:()=>ipcRenderer.invoke('writely:secure-open'),
+  secureSave:(name,text,mime)=>ipcRenderer.invoke('writely:secure-save',name,text,mime),
   spellCheck:(language,words)=>ipcRenderer.invoke('writely:spell-check',language,words),
   spellSuggest:(language,word)=>ipcRenderer.invoke('writely:spell-suggest',language,word),
   dictionaryWords:language=>ipcRenderer.invoke('writely:dictionary-list',language),

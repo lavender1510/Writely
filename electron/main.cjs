@@ -155,6 +155,24 @@ async function exportPDFSection(document, html, pageCSS = '') {
 }
 
 function registerBridge() {
+  const sealed = new (require('./sealed-storage.cjs').SealedStorage)(path.join(app.getPath('userData'),'sealed-workspace'));
+  handle('sealed-read',()=>sealed.read());
+  handle('sealed-write',text=>sealed.write(text));
+  handle('secure-open',async()=>{
+    const result=await dialog.showOpenDialog(mainWindow,{title:'Datei in den Tresor importieren',properties:['openFile'],filters:[{name:'Writely und Text',extensions:['writely','txt','md','html','htm']}]});
+    if(result.canceled)return null;
+    const file=result.filePaths[0];if((await fs.stat(file)).size>90*1024*1024)throw new Error('Die Datei ist größer als 90 MB.');
+    return {name:path.basename(file),text:await fs.readFile(file,'utf8')};
+  });
+  handle('secure-save',async(name,text,mime)=>{
+    if(typeof name!=='string'||name.length>150||/[\\/\x00-\x1f]/.test(name)||typeof text!=='string'||Buffer.byteLength(text)>90*1024*1024||!['application/json','text/plain','text/html','text/markdown'].includes(mime))throw new Error('Die Datei kann mit diesen Angaben nicht exportiert werden.');
+    // The isolated workspace exports ciphertext by default. Plaintext needs a
+    // second trusted-process confirmation, even if a renderer bypasses its dialog.
+    let encrypted=false;try{require('./sealed-storage.cjs').validateSealed(text);encrypted=true;}catch{}
+    if(!encrypted){const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Kennwortschutz geht verloren',message:'Diese Datei wird unverschlüsselt exportiert. Jeder mit Zugriff auf die Datei kann den Inhalt lesen.',buttons:['Abbrechen','Unverschlüsselt exportieren'],defaultId:0,cancelId:0});if(answer.response!==1)return false;}
+    const result=await dialog.showSaveDialog(mainWindow,{defaultPath:name});if(result.canceled)return false;
+    await atomicWrite(result.filePath,text);return true;
+  });
   handle('spell-check', (language, words) => proofing.check(language, words));
   handle('spell-suggest', (language, word) => proofing.suggest(language, word));
   handle('dictionary-list', (language) => proofing.words(language));
@@ -344,7 +362,8 @@ function registerBridge() {
   handle('history-configure', (value) => store.configure(value));
   handle('flush-reply', (token, document) => {
     if (!pendingFlush || pendingFlush.token !== token) return;
-    const snapshot = document === undefined ? null : validateDocument(document);
+    const secureAck=document?.secureFlush===true&&typeof document.failed==='boolean'&&Object.keys(document).length===2;
+    const snapshot = document === undefined ? null : secureAck?document:validateDocument(document);
     const resolve = pendingFlush.resolve;
     pendingFlush = undefined;
     resolve(snapshot);
@@ -645,9 +664,9 @@ async function createWindow() {
         const timeout = setTimeout(() => {
           if (pendingFlush?.token === token) {
             pendingFlush = undefined;
-            resolve(null);
+            resolve({secureFlush:true,failed:true});
           }
-        }, 2000);
+        }, 15000);
         pendingFlush = {
           token,
           resolve: (value) => {
@@ -657,7 +676,8 @@ async function createWindow() {
         };
         mainWindow.webContents.send('writely:flush', token);
       });
-      if (document) {
+      if (document?.secureFlush && document.failed) throw new Error('Die Datei konnte nicht gespeichert werden. Der Tresor bleibt geöffnet.');
+      if (document && !document.secureFlush) {
         await store.autosave(document);
         await library.put(document);
       }

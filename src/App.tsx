@@ -1,13 +1,8 @@
+import {editorExtensions} from './editor-extensions';
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { EditorContent, useEditor } from '@tiptap/react';
 import {closeHistory} from '@tiptap/pm/history';
-import { Extension, Mark, type JSONContent } from '@tiptap/core';
-import StarterKit from '@tiptap/starter-kit';
-import Image from '@tiptap/extension-image';
-import { Table, TableRow, TableHeader, TableCell } from '@tiptap/extension-table';
-import { TextStyle, Color, FontFamily, FontSize } from '@tiptap/extension-text-style';
-import TextAlign from '@tiptap/extension-text-align';
-import Highlight from '@tiptap/extension-highlight';
+import type {JSONContent} from '@tiptap/core';
 import {
   AlignLeft, AlignCenter, AlignRight, AlignJustify, ArrowDown, ArrowRight,
   ArrowUp, Bold, BookOpen, Check, CheckCheck, ChevronDown, ChevronRight, CircleHelp,
@@ -23,11 +18,8 @@ import Design from './Design';
 import VersionHistory from './VersionHistory';
 import SearchPanel from './SearchPanel';
 import ProofingTools from './ProofingTools';
-import {HeadingAnchors,Note,DynamicTOC} from './references-editor';
 import {NoteDialog,NotesList} from './NotesPanel';
 import {migrateDocument} from '../electron/document-schema.mjs';
-import {ProofingHighlights} from './proofing-editor';
-import {SearchHighlights} from './search-editor';
 import { PROFESSIONAL_STYLES } from './catalog';
 import { library } from './library';
 import LayoutPanel from './LayoutPanel';
@@ -35,25 +27,11 @@ import PageNavigator from './PageNavigator';
 import InsertPanel from './InsertPanel';
 import TableTools from './TableTools';
 import ImageTools from './ImageTools';
-import {LayoutMetadata,LayoutBreak} from './layout-editor';
 import {normalizeLayout} from '../electron/layout.mjs';
 import type { DocumentFile } from './shared';
 
 const api = getApi();
 const fontsReady = api.listFonts().then(values => Array.from(new Set(['Inter', 'Source Serif 4', ...values.map(f=>f.replace(/^"|"$/g,''))])).sort()).catch(()=>['Inter','Source Serif 4']);
-const NamedStyle = Extension.create({
-  name: 'namedStyle',
-  addGlobalAttributes() {
-    return [{ types: ['paragraph', 'heading', 'blockquote'], attributes: {
-      styleId: { default: null, parseHTML: el => el.getAttribute('data-style-id') || el.getAttribute('data-style'), renderHTML: a => a.styleId ? { 'data-style-id': a.styleId } : {} },
-    } }];
-  },
-});
-const SuperscriptMark = Mark.create({ name:'superscript', parseHTML:()=>[{tag:'sup'}], renderHTML:()=>['sup',{},0] });
-const SubscriptMark = Mark.create({ name:'subscript', parseHTML:()=>[{tag:'sub'}], renderHTML:()=>['sub',{},0] });
-const RichImage=Image.extend({addAttributes(){return {...this.parent?.(),drawing:{default:null,rendered:false},originalSrc:{default:null,rendered:false},imageEdit:{default:null,rendered:false},float:{default:'inline',parseHTML:element=>element.style.float||'inline',renderHTML:a=>a.float==='left'||a.float==='right'?{style:`float:${a.float};max-width:60%;margin:12px;`}:a.float==='center'?{style:'display:block;margin-left:auto;margin-right:auto'}:{}}};}});
-const Cell=TableCell.extend({addAttributes(){return {...this.parent?.(),cellBorder:{default:null,renderHTML:a=>a.cellBorder?{style:`border:${a.cellBorder==='none'?'none':'1px solid '+a.cellBorder}`}:{ }},paddingMm:{default:null,renderHTML:a=>a.paddingMm!=null?{style:`padding:${a.paddingMm}mm`}:{}},background:{default:null,parseHTML:el=>el.style.backgroundColor||null,renderHTML:a=>a.background?{style:`background-color:${a.background}`}:{}}};}});
-const HeaderCell=TableHeader.extend({addAttributes(){return {...this.parent?.(),cellBorder:{default:null,renderHTML:a=>a.cellBorder?{style:`border:${a.cellBorder==='none'?'none':'1px solid '+a.cellBorder}`}:{ }},paddingMm:{default:null,renderHTML:a=>a.paddingMm!=null?{style:`padding:${a.paddingMm}mm`}:{}},background:{default:null,parseHTML:el=>el.style.backgroundColor||null,renderHTML:a=>a.background?{style:`background-color:${a.background}`}:{}}};}});
 const starter = createDocument('welcome');
 type Modal = 'command' | 'templates' | 'statistics' | 'search' | 'versions' | 'link' | 'footnote' | 'export' | 'shortcuts' | null;
 
@@ -93,7 +71,7 @@ function App({initial,onHome}:{initial?:{document:DocumentFile;path?:string};onH
   const scrollRef = useRef<HTMLDivElement>(null);
   const notify = useCallback((message: string) => setToast(message), []);
   const editor = useEditor({
-    extensions: [StarterKit.configure({ link: { openOnClick: false, autolink: true } }), NamedStyle, HeadingAnchors, Note, DynamicTOC, SearchHighlights, ProofingHighlights, LayoutMetadata, LayoutBreak, SuperscriptMark, SubscriptMark, RichImage.configure({ allowBase64: true }), Table.configure({ resizable: true }), TableRow, HeaderCell, Cell, TextStyle, Color, FontFamily, FontSize, TextAlign.configure({ types: ['heading', 'paragraph'] }), Highlight.configure({ multicolor: true })],
+    extensions: editorExtensions(),
     content: {...(initial?.document||starter).content,attrs:{...(initial?.document||starter).content.attrs,pageLayout:(initial?.document||starter).content.attrs?.pageLayout||(initial?.document||starter).page}} as JSONContent,
     editable: false,
     editorProps: { attributes: { class: 'writely-editor', spellcheck: 'false', lang: 'de-DE', 'aria-label': 'Dokument bearbeiten' } },
