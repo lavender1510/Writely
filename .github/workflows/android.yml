@@ -26,7 +26,7 @@ jobs:
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: 1
       - run: npm run android:sync
-      - run: ./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
+      - run: ./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
         working-directory: android
       - name: Enable emulator acceleration
         run: |
@@ -41,7 +41,7 @@ jobs:
           disable-animations: true
           script: |
             cd android
-            ./gradlew --no-daemon connectedDebugAndroidTest
+            ./gradlew --no-daemon :app:connectedDebugAndroidTest
             cd ..
             mkdir -p work
             adb exec-out run-as de.writely.mobile cat no_backup/workspace.sealed > work/android-roundtrip.writely

@@ -59,8 +59,8 @@ Voraussetzungen: Node 24, JDK 21, Android SDK Plattform 36 und Build Tools 35.0.
 npm ci
 npm run android:sync
 cd android
-./gradlew --no-daemon assembleDebug assembleDebugAndroidTest
-./gradlew --no-daemon connectedDebugAndroidTest
+./gradlew --no-daemon :app:assembleDebug :app:assembleDebugAndroidTest
+./gradlew --no-daemon :app:connectedDebugAndroidTest
 ```
 
 Unter Windows `gradlew.bat` verwenden. `npm run android:build` ist ein Komfortbefehl
