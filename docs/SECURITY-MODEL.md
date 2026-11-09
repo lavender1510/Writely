@@ -64,6 +64,9 @@ Kennwortwechsel authentifiziert das alte Kennwort und den Inhalt erneut. Danach
 wird nur der Datenschlüssel mit neuem Salt/neuer Nonce umschlossen. Der
 Inhalts-Ciphertext bleibt gleich. Alte exportierte Backups behalten ihr altes
 Kennwort; ein Kennwortwechsel kann frühere Kopien nicht widerrufen.
+Wer den Datenschlüssel aus einem alten Backup bereits kennt, kann auch spätere
+mit demselben Datenschlüssel erzeugte Zustände entschlüsseln. Reines Umschließen
+ist keine Schlüsselrotation nach einem kompromittierten Schlüssel.
 
 ## Sperre, Fehler und Export
 

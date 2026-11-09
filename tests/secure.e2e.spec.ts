@@ -69,6 +69,9 @@ test('background lock cancels an in-flight unlock and dark tablet view stays usa
   await page.getByLabel('Kennwort',{exact:true}).fill('Writely Testvektor Grüße 2026');
   await page.getByRole('button',{name:'Entsperren',exact:true}).click();
   await expect(page.locator('.secure-card')).toContainText('Windows ↔ Android');
+  await page.getByRole('button',{name:'Datenschutz und Sicherheit',exact:true}).click();
+  await page.getByLabel('Darstellung',{exact:true}).selectOption('dark');
+  await page.getByRole('button',{name:'Datenschutz und Sicherheit',exact:true}).click();
   await expect(page.locator('html')).toHaveAttribute('data-theme','dark');
   await page.screenshot({path:'work/cross-platform/android-tablet-dark.png',fullPage:true});
 });

@@ -78,7 +78,7 @@ public class WritelyFilesPlugin extends Plugin {
     @ActivityCallback private void saved(PluginCall call,ActivityResult result){
         if(call==null)return;
         if(result.getResultCode()!=Activity.RESULT_OK||result.getData()==null){call.resolve(new JSObject().put("cancelled",true));return;}
-        try(OutputStream out=getContext().getContentResolver().openOutputStream(result.getData().getData().getData(),"wt")){
+        try(OutputStream out=getContext().getContentResolver().openOutputStream(result.getData().getData(),"wt")){
             if(out==null)throw new IOException();out.write(call.getString("text").getBytes(StandardCharsets.UTF_8));call.resolve(new JSObject().put("cancelled",false));
         }catch(Exception e){call.reject("Die Exportdatei konnte nicht geschrieben werden.");}
     }

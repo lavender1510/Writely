@@ -51,7 +51,8 @@ Strg+F suchen, Strg+Umschalt+L sperren; Tiptap stellt Format-/Undo-Kürzel berei
 
 ## Lokaler Build
 
-Voraussetzungen: Node 24, JDK 21, Android SDK Plattform 36 und Build Tools 36.0.0.
+Voraussetzungen: Node 24, JDK 21, Android SDK Plattform 36 und Build Tools 35.0.0
+(Standard von Android Gradle Plugin 8.13).
 `ANDROID_HOME` zeigt auf das SDK; Lizenzen mit `sdkmanager --licenses` akzeptieren.
 
 ```
