@@ -60,6 +60,7 @@ export function NoteDialog({
         <label className="field-label">
           Notentext
           <textarea
+            aria-label="Notentext"
             autoFocus
             className="text-input"
             rows={6}
