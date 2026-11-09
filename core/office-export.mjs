@@ -124,7 +124,7 @@ async function exportDocx(document) {
       const isCustom = attrs.styleId && customIds[attrs.styleId] && !/^h[1-6]$/.test(attrs.styleId);
       const style = isCustom ? { style: customIds[attrs.styleId], ...(node.type === 'heading' ? { outlineLevel: headingLevel - 1 } : {}) } : node.type === 'heading' ? { heading: HeadingLevel[`HEADING_${headingLevel}`] } : {};
       const spacing = paragraphStyle(resolved).spacing || {};
-      const result = new Paragraph({ ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: node.type==='heading'?[new docx.Bookmark({id:bookmarkName(referenceData.headings.find(h=>h.node===node)?.id||attrs.anchorId),children:inline(node.content,runStyle(resolved))})]:inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
+      const result = new Paragraph({ ...paragraphStyle(resolved), ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: node.type==='heading'?[new docx.Bookmark({id:bookmarkName(referenceData.headings.find(h=>h.node===node)?.id||attrs.anchorId),children:inline(node.content,runStyle(resolved))})]:inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
       // Number only the first paragraph in a list item, leaving subsequent blocks unnumbered.
       list = null;
       return [result];
@@ -147,7 +147,7 @@ async function exportDocx(document) {
     ...(document.theme==='Dunkel'?{background:{color:'25212d'}}:{}),
     creator: 'Writely', title: document.title || 'Unbenannt', description: 'Mit Writely erstellt',
     styles: {
-      default: { document: { run: { font: 'Georgia', size: 24, ...runStyle(resolveStyle(document, 'normal')) }, paragraph: { ...paragraphStyle(resolveStyle(document, 'normal')), spacing: { line: 300, ...(paragraphStyle(resolveStyle(document, 'normal')).spacing || {}) } } }, ...semanticDefaults },
+      default: { document: { run: { font: 'Georgia', size: 24, ...runStyle(resolveStyle(document, 'normal')) }, paragraph: { spacing: { line: 300, ...(paragraphStyle(resolveStyle(document, 'normal')).spacing || {}) } } }, ...semanticDefaults },
       paragraphStyles: Object.entries(document.styles || {}).map(([key, style]) => ({ id: customIds[key], name: String(style.name || key), basedOn: customIds[style.basedOn] || 'Normal', run: runStyle(resolveStyle(document, key)), paragraph: paragraphStyle(resolveStyle(document, key)) })),
     },
     numbering: { config: numbering },

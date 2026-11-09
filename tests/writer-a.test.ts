@@ -14,7 +14,7 @@ test('mixed section capacities, explicit breaks and oversized fragments never tr
 });
 test('paragraph style inheritance renders centrally and exports real DOCX/ODT properties',async()=>{
   const d=createDocument('blank');d.styles.normal={...d.styles.normal,spaceBeforePt:12,spaceAfterPt:18,indentLeftMm:10,firstLineMm:-5,keepWithNext:true};d.styles.custom={name:'Geerbt',basedOn:'normal'};d.content.content![0].attrs={styleId:'custom'};validateDocument(d);assert.match(styleSheet(d.styles),/margin-top:12pt/);assert.match(styleSheet(d.styles),/text-indent:-5mm/);
-  const word=await openZip(await exportDocx(d));assert.match(await word.file('word/styles.xml')!.async('string'),/w:before="240"/);assert.match(await word.file('word/styles.xml')!.async('string'),/w:hanging="283"/);
+  const word=await openZip(await exportDocx(d));const styles=await word.file('word/styles.xml')!.async('string');assert.doesNotMatch(styles.match(/<w:docDefaults>[\s\S]*?<\/w:docDefaults>/)?.[0]||'',/w:ind/);assert.match(styles,/w:before="240"/);assert.match(await word.file('word/styles.xml')!.async('string'),/w:hanging="283"/);
   const odt=await openZip(await exportOdt(d));assert.match(await odt.file('content.xml')!.async('string'),/fo:margin-top="12pt"/);assert.match(await odt.file('content.xml')!.async('string'),/fo:keep-with-next="always"/);
   d.styles.normal.indentLeftMm=-1;assert.throws(()=>validateDocument(d),/Absatzvorlage/);
 });
