@@ -10,11 +10,12 @@ export interface VaultRecord {
   document:DocumentFile; folderId:string|null; pinned:boolean; deletedAt?:string;
   history:{capturedAt:string; document:DocumentFile}[];
 }
-export interface VaultData {format:'WritelyVault'; version:1; folders:VaultFolder[]; documents:VaultRecord[]}
+export interface VaultData {format:'WritelyVault'; version:1; folders:VaultFolder[]; documents:VaultRecord[]; templates?:{id:string;name:string;document:DocumentFile;kind:string}[]}
 export function validateVault(value: unknown): VaultData {
   const v = value as VaultData;
   if (!v || v.format !== 'WritelyVault' || v.version !== 1 || !Array.isArray(v.folders) || !Array.isArray(v.documents) || v.folders.length > 1000 || v.documents.length > 1000)
     throw new Error('Der Tresor enthält keine unterstützte Bibliothek.');
+  if(v.templates!==undefined){if(!Array.isArray(v.templates)||v.templates.length>200)throw new Error('Die Vorlagenliste ist ungültig.');for(const t of v.templates){if(!t||typeof t.id!=='string'||typeof t.name!=='string'||!t.name.trim()||t.name.length>200||!['template-save','styles-save'].includes(t.kind))throw new Error('Eine Vorlage ist ungültig.');validateDocument(t.document);}}
   const ids = new Set<string>();
   for (const f of v.folders) {
     if (!f || typeof f.id !== 'string' || !f.id || ids.has(f.id) || typeof f.name !== 'string' || !f.name.trim() || f.name.length > 200 || !(f.parentId === null || typeof f.parentId === 'string')) throw new Error('Die Tresor-Ordner sind ungültig.');
@@ -108,6 +109,10 @@ export class Vault {
     const id = crypto.randomUUID();
     return this.transaction(v => {v.folders.push({id,name,parentId});}).then(() => id);
   }
+  saveTemplate(kind:string,name:string,document:DocumentFile){return this.transaction(v=>{v.templates??=[];v.templates.push({id:crypto.randomUUID(),kind,name,document:kind==='styles-save'?{...structuredClone(document),content:{type:'doc',content:[{type:'paragraph'}]}}:structuredClone(document)});});}
+  renameFolder(id:string,name:string){return this.transaction(v=>{const f=v.folders.find(f=>f.id===id);if(!f)throw new Error('Ordner nicht gefunden.');f.name=name;});}
+  moveFolder(id:string,parentId:string|null){return this.transaction(v=>{const f=v.folders.find(f=>f.id===id);if(!f)throw new Error('Ordner nicht gefunden.');f.parentId=parentId;});}
+  duplicate(id:string){return this.transaction(v=>{const r=structuredClone(this.record(v,id));r.document.id=crypto.randomUUID();r.document.title=(r.document.title+' – Kopie').slice(0,500);r.document.createdAt=r.document.updatedAt=new Date().toISOString();r.history=[];r.pinned=false;delete r.deletedAt;v.documents.push(r);});}
   move(id:string,folderId:string|null) {return this.transaction(v => {this.record(v,id).folderId = folderId;});}
   pin(id:string) {return this.transaction(v => {const r = this.record(v,id); r.pinned = !r.pinned;});}
   trash(id:string) {return this.transaction(v => {this.record(v,id).deletedAt = new Date().toISOString();});}
@@ -140,6 +145,7 @@ export class Vault {
       const data = structuredClone(validateVault(source.payload));
       const folders = new Map(data.folders.map(f => [f.id,crypto.randomUUID()]));
       await this.transaction(v => {
+        for(const t of data.templates||[]){v.templates??=[];v.templates.push({...t,id:crypto.randomUUID()});}
         for (const f of data.folders) v.folders.push({...f,id:folders.get(f.id)!,parentId:f.parentId ? folders.get(f.parentId)! : null});
         for (const r of data.documents) {
           const id = crypto.randomUUID();

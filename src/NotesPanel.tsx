@@ -60,6 +60,7 @@ export function NoteDialog({
         <label className="field-label">
           Notentext
           <textarea
+            aria-label="Notentext"
             autoFocus
             className="text-input"
             rows={6}
@@ -69,7 +70,7 @@ export function NoteDialog({
           />
         </label>
         <p>
-          Nummerierung wird automatisch aktualisiert. Notentexte werden als Klartext gespeichert.
+          Nummerierung wird automatisch aktualisiert. Notentexte sind unformatierter Text und werden mit dem Dokument gespeichert.
         </p>
         <div className="modal-actions">
           {attrs && (

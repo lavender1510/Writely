@@ -8,6 +8,7 @@ const s=await unlockSealed(text,'Writely Testvektor Grüße 2026');
 try{
   const v=validateVault(s.payload),d=v.documents[0].document;
   assert.equal(d.title,'Windows ↔ Android');
+  assert.equal(d.page.size,'A5');
   assert.ok(documentText(d.content).includes('Android'));
   assert.ok(d.content.content!.some(n=>n.type==='table'));
   assert.ok(d.content.content!.some(n=>n.type==='image'&&n.attrs?.src.startsWith('data:image/png;base64,')));

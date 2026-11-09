@@ -1,6 +1,6 @@
 {
   "name": "writely",
-  "version": "0.5.0-prototype.1",
+  "version": "0.5.0-alpha.2",
   "description": "Writely \u2013 ein ruhiger Ort f\u00fcr gute Gedanken. Lokale Schreibapp f\u00fcr Windows.",
   "author": "Writely contributors",
   "private": true,
@@ -24,6 +24,7 @@
     "@capacitor/android": "^8.6.0",
     "@capacitor/app": "^8.1.2",
     "@capacitor/core": "^8.6.0",
+    "buffer": "^6.0.3",
     "dictionary-de": "^3.0.0",
     "dictionary-en": "^4.0.0",
     "docx": "^9.5.1",
