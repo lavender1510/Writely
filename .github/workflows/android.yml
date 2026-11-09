@@ -40,7 +40,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
-            ./android/gradlew -p android --no-daemon :app:connectedDebugAndroidTest
+            ./android/gradlew -p android --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest
             mkdir -p work
             adb exec-out run-as de.writely.mobile cat no_backup/workspace.sealed > work/android-roundtrip.writely
             node --import tsx scripts/verify-android-roundtrip.mts
