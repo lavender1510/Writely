@@ -1,8 +1,10 @@
 # Writely
 
-Eine lokale Schreibapp mit deutscher Windows-Oberfläche. **0.4.0-alpha.1** ist der unveröffentlichte Entwicklungsstand für das Produktivitäts- und Qualitätsupdate. Neu sind Papierkorb, sichere Bibliotheksrevisionen, Verlaufsvorschau, Backups, Live-/Volltextsuche, Offline-Wörterbücher, dynamisches Inhaltsverzeichnis sowie Fuß- und Endnoten.
+Eine lokale Schreibapp mit deutscher Oberfläche. Der veröffentlichte Windows-Stand ist **0.4.0-alpha.1**. Dieser Entwicklungsbranch **0.5.0-prototype.1** ergänzt einen gemeinsamen Dokumentkern, einen tatsächlich verschlüsselten Tresor und einen Android-Prototyp. Er ist noch keine vollständige plattformübergreifende Version.
 
-[Updateumfang, Architektur, Tests und bekannte Grenzen](docs/UPDATE-0.4.md). Die neue Version wird zunächst als Pull Request mit Windows-Setup/ZIP aus GitHub Actions geprüft; ein Release benötigt eine gesonderte Freigabe.
+[Entwicklungsplan und Ausgangsanalyse](docs/CROSS-PLATFORM-PLAN.md) · [Sicherheitsmodell und Dateiformat](docs/SECURITY-MODEL.md) · [Android, Builds und Funktionsstand](docs/ANDROID-PROTOTYPE.md).
+
+Windows: Im Startbildschirm **Verschlüsselter Tresor · Vorschau** öffnen. Der Tresor schützt seinen eigenen Arbeitsbereich einschließlich Ordnern, Papierkorb und Versionen. Bestehende Windows-Dokumente werden dadurch nicht nachträglich verschlüsselt. Kein Release und keine Play-Store-Veröffentlichung erfolgen automatisch.
 
 ![Writely Startbildschirm](docs/images/startbildschirm.png)
 
@@ -10,7 +12,7 @@ Weiterhin verfügbar: Unter **Einstellungen → Fenster & Bildschirme** zwischen
 
 ## Download
 
-Für die bisher veröffentlichte Version 0.3.0-alpha.1 im [GitHub-Release](https://github.com/lavender1510/Writely/releases) das Windows-Setup ausführen oder das portable ZIP vollständig entpacken und Writely.exe starten. Node.js und Internet sind für die installierte App nicht erforderlich. Die Vorabversion ist nicht signiert.
+Für die veröffentlichte Version 0.4.0-alpha.1 im [GitHub-Release](https://github.com/lavender1510/Writely/releases) das Windows-Setup ausführen oder das portable ZIP vollständig entpacken und Writely.exe starten. Node.js und Internet sind für die installierte App nicht erforderlich. Die Vorabversion ist nicht signiert.
 
 ## Funktionen
 

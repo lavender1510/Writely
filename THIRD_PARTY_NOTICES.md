@@ -54,3 +54,9 @@ Pandoc wird als separates lokales Programm aufgerufen und im Windows-Paket mitge
 ## Offline-Rechtschreibung (0.4)
 
 nspell 2.1.5: MIT. Die Wörterbuchdaten sind getrennte, unverändert mitgelieferte lokale Datenbestände: Deutsch aus `dictionary-de` 3.0.0 / igerman98 20161207 (GPL-2.0 oder GPL-3.0), Englisch aus `dictionary-en` 4.0.0 (MIT und BSD). Original-Lizenz- und Copyrighttexte liegen jeweils unter `dictionaries/<Sprache>/license`. Für Deutsch liegen beide GPL-Volltexte unter `licenses/`; der ursprüngliche korrespondierende igerman98-Quellcode wird unter `dictionaries/de-DE/igerman98-20161207.tar.bz2` mitgeliefert. Die `.aff`-/`.dic`-Dateien und Paket-Readmes werden ebenfalls unverändert ausgeliefert. Herkunft und Grenzen: [Wörterbuchhinweise](dictionaries/README.md).
+
+## Gemeinsamer Verschlüsselungskern und Android-Prototyp
+
+- `hash-wasm` 4.13.0: MIT, Argon2id-WASM. [Vollständige Lizenz](licenses/LICENSE-hash-wasm.txt). AES-GCM verwendet die Web-Crypto-API der jeweiligen Laufzeit.
+- Capacitor Core/Android/CLI 8.6.0 und App 8.1.2: MIT. [Capacitor-Lizenz](licenses/LICENSE-capacitor.txt). Keine verpflichtenden Online-Dienste.
+- AndroidX-Abhängigkeiten: Apache-2.0, aufgelöst über Gradle. Android-Quellprojekt und Builddateien benennen die konkreten Bibliotheken.

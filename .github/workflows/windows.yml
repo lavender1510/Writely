@@ -32,6 +32,8 @@ jobs:
         env:
           WRITELY_PANDOC: ${{ github.workspace }}\.tools\pandoc.exe
         run: npm run test:desktop
+      - name: Test encrypted Windows workspace
+        run: npm run test:secure-desktop
       - name: Package Windows x64
         run: npm exec electron-builder -- --win zip nsis --x64 --publish never
       - name: Test packaged Windows application
@@ -49,6 +51,8 @@ jobs:
         with:
           name: Desktop-test-evidence
           path: |
+            work/secure-desktop/report.json
+            work/secure-desktop/secure-desktop.png
             work/desktop-smoke/report.json
             work/desktop-smoke/desktop.png
             work/desktop-smoke/document.pdf

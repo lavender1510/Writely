@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Writely</string>
+    <string name="title_activity_main">Writely</string>
+    <string name="package_name">de.writely.mobile</string>
+    <string name="custom_url_scheme">de.writely.mobile</string>
+</resources>

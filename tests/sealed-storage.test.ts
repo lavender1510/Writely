@@ -1,0 +1,24 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {mkdtemp,readFile,readdir,rm} from 'node:fs/promises';
+import {tmpdir} from 'node:os';
+import path from 'node:path';
+import {createRequire} from 'node:module';
+import {Vault} from '../core/vault';
+import {createDocument} from '../core/document';
+const {SealedStorage}=createRequire(import.meta.url)('../electron/sealed-storage.cjs');
+test('real filesystem contains ciphertext exclusively, including after close, history and trash',async t=>{
+  const directory=await mkdtemp(path.join(tmpdir(),'writely-sealed-'));t.after(()=>rm(directory,{recursive:true,force:true}));
+  const store=new SealedStorage(directory);const vault=new Vault(store);
+  await vault.create('Sehr geheimes Kennwort 123');
+  const folder=await vault.folder('Vertraulicher Ordner');
+  const d=createDocument('blank');d.title='Vertraulicher Titel';
+  d.content.content![0].content=[{type:'text',text:'Kein Klartext auf dem Datenträger'}];
+  await vault.put(d,folder);await vault.put({...d,title:'Geänderter vertraulicher Titel'},folder);await vault.trash(d.id);await vault.lock();
+  assert.deepEqual(await readdir(directory),['workspace.sealed']);
+  const text=await readFile(path.join(directory,'workspace.sealed'),'utf8');
+  for(const secret of ['Vertraulicher','vertraulicher','Klartext','Datenträger',folder,d.id])assert.ok(!text.includes(secret));
+  await assert.rejects(store.write(JSON.stringify(d)),/verschlüsselte/);
+  const restarted=new Vault(new SealedStorage(directory));await restarted.unlock('Sehr geheimes Kennwort 123');
+  assert.ok(restarted.data().documents[0].deletedAt);assert.equal(restarted.data().documents[0].history.length,1);
+});
