@@ -110,3 +110,12 @@ Globale Style-/Theme-Metadaten besitzen weiterhin keine vollständige gemeinsame
 APK aus dem Artefakt des Android-Workflows herunterladen, auf das Gerät übertragen und die Installation aus dieser Quelle erlauben. Android 7/API 24 ist Mindestversion; die Instrumentierung verwendet API 35. Für den lokalen Build: JDK 21, SDK 36, Build Tools 35.0.0, `npm ci`, `npm run android:sync`, `android/gradlew -p android :app:assembleDebug`.
 
 Vor dem Wechsel von einer älteren Debug-APK ein verschlüsseltes Tresor-Backup außerhalb der App sichern. Verschiedene CI-Runner können unterschiedliche Debug-Zertifikate verwenden; Android verweigert dann ein direktes Update. Die alte App keinesfalls ohne geprüftes externes Backup deinstallieren. Es wird keine automatische Deinstallation/Migration auf Nutzergeräten durchgeführt. Eine stabile Distributionssignatur muss vor einer öffentlichen Veröffentlichung eingerichtet werden.
+
+## Reproduzierbare Funktionsnachweise
+
+- `npm test`: 77 Prüfungen. Neue Tests prüfen echte DOCX-/ODT-XML, native Noten/Abschnitte, Windows-kompatible Fingerprints, Manipulationserkennung sowie verschlüsselte Vorlagen, Ordnerzyklen, Duplikate und Backup-Merge.
+- `npm run test:e2e`: 23 Bedienprüfungen. Ergänzt: mobiles A5-Querformat einschließlich Undo und verschlüsseltem Erhalt der Tabelle/Noten; Tabellenzeile einfügen/Undo; dynamisches TOC; vorhandene Fußnote bearbeiten; echtes DOCX herunterladen und prüfen; nach Entfernen privater Zusatzdaten den externen DOCX-Import mit Tabelle/PNG ausführen. Die zusätzlichen drei Paritätsprüfungen bestehen lokal auch mit dem expliziten Notentext-Label.
+- `npm run test:desktop` und `npm run test:secure-desktop`: bestehende echte Electron-Prüfungen und vier Tresorprüfungen lokal bestanden. Die Windows-Action wiederholt diese am PR und testet außerdem das gepackte Programm.
+- Android: App und Test-APK bauen lokal. Die native Instrumentierung ergänzt die A5-Auswahl; der Host-Roundtrip prüft dieses Layout nach der Android-Bearbeitung. Der abschließende Emulatorlauf wird im PR verlinkt; ein lokaler Build allein gilt nicht als Gerätemessung.
+
+Dies ist kein Nachweis für alle Bildschirmtastaturen, große Medienbibliotheken, sämtliche Dialogoptionen auf echten Tablets oder verlustfreie Fremd-Office-Konvertierung. Offene Zeilen der Matrix bleiben offen und werden nicht durch ein sichtbares Menü als erledigt gezählt.

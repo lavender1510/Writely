@@ -30,4 +30,12 @@ test('browser Office exporter downloads a real DOCX with intact private document
   const {recover,openZip}=await import('../core/zip-roundtrip.mjs');const bytes=await readFile((await file.path())!);
   const model=await recover(bytes);expect(model.title).toBe('Windows ↔ Android');expect(JSON.stringify(model.content)).toContain('Interoperable Notiz');
   const zip=await openZip(bytes);expect(await zip.file('word/document.xml')!.async('string')).toContain('Grüße');
+  zip.remove('META-INF/writely-document.json');
+  const external=await zip.generateAsync({type:'nodebuffer'});
+  await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
+  page.once('filechooser',chooser=>void chooser.setFiles({name:'External.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:external}));
+  await page.getByRole('button',{name:'Importieren',exact:true}).click();
+  await expect(page.locator('.secure-card')).toHaveCount(2);await expect(page.getByRole('alert')).toContainText('Externer DOCX-Import');
+  await page.locator('.secure-card').filter({hasText:'External'}).locator('.secure-card-open').click();
+  await expect(page.locator('.secure-prose table')).toBeVisible();await expect(page.locator('.secure-prose img[src^="data:image"]')).toHaveCount(1);
 });
