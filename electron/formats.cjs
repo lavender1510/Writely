@@ -254,6 +254,7 @@ function styleCss(style) {
   if (typeof style.fontSize === 'number' && style.fontSize >= 4 && style.fontSize <= 300) values.push(`font-size:${style.fontSize}pt`);
   if (typeof style.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(style.color)) values.push(`color:${style.color}`);
   if (typeof style.lineHeight === 'number' && style.lineHeight >= 1 && style.lineHeight <= 3) values.push(`line-height:${style.lineHeight}`);
+  const paragraph=require('../core/paragraph-style.mjs').paragraphCSS(style);if(paragraph)values.push(paragraph);
   return values.join(';');
 }
 function exportStyles(document) {

@@ -52,7 +52,9 @@ async function exportDocx(document) {
     return result;
   }
   function paragraphStyle(style) {
-    return typeof style.lineHeight === 'number' && style.lineHeight >= 1 && style.lineHeight <= 3 ? { spacing: { line: Math.round(style.lineHeight * 240) } } : {};
+    const spacing={...(typeof style.lineHeight==='number'?{line:Math.round(style.lineHeight*240)}:{}),...(style.spaceBeforePt!==undefined?{before:Math.round(style.spaceBeforePt*20)}:{}),...(style.spaceAfterPt!==undefined?{after:Math.round(style.spaceAfterPt*20)}:{})};
+    const mm=n=>Math.round(n/25.4*1440);
+    return {spacing,indent:{...(style.indentLeftMm!==undefined?{left:mm(style.indentLeftMm)}:{}),...(style.indentRightMm!==undefined?{right:mm(style.indentRightMm)}:{}),...(style.firstLineMm!==undefined?(style.firstLineMm<0?{hanging:mm(-style.firstLineMm)}:{firstLine:mm(style.firstLineMm)}):{})},...(style.alignment?{alignment:style.alignment==='justify'?'both':style.alignment}:{}),keepNext:style.keepWithNext,keepLines:style.keepTogether,pageBreakBefore:style.pageBreakBefore};
   }
   function inline(nodes, inherited = {}) {
     return (nodes || []).flatMap(node => {
@@ -145,7 +147,7 @@ async function exportDocx(document) {
     ...(document.theme==='Dunkel'?{background:{color:'25212d'}}:{}),
     creator: 'Writely', title: document.title || 'Unbenannt', description: 'Mit Writely erstellt',
     styles: {
-      default: { document: { run: { font: 'Georgia', size: 24, ...runStyle(resolveStyle(document, 'normal')) }, paragraph: { spacing: { line: 300, ...(paragraphStyle(resolveStyle(document, 'normal')).spacing || {}) } } }, ...semanticDefaults },
+      default: { document: { run: { font: 'Georgia', size: 24, ...runStyle(resolveStyle(document, 'normal')) }, paragraph: { ...paragraphStyle(resolveStyle(document, 'normal')), spacing: { line: 300, ...(paragraphStyle(resolveStyle(document, 'normal')).spacing || {}) } } }, ...semanticDefaults },
       paragraphStyles: Object.entries(document.styles || {}).map(([key, style]) => ({ id: customIds[key], name: String(style.name || key), basedOn: customIds[style.basedOn] || 'Normal', run: runStyle(resolveStyle(document, key)), paragraph: paragraphStyle(resolveStyle(document, key)) })),
     },
     numbering: { config: numbering },

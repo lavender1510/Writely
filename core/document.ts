@@ -1,3 +1,4 @@
+import {paragraphCSS} from './paragraph-style.mjs';
 import type { DocumentFile, JSONContent, StyleDefinition } from './types';
 
 export const DEFAULT_STYLES: Record<string, StyleDefinition> = {
@@ -87,7 +88,7 @@ function safeFont(value: string): string {
   return value.replace(/[^\p{L}\p{N} _.,-]/gu, '').slice(0, 120);
 }
 
-function cssProperties(style: StyleDefinition): string {
+function cssProperties(style: StyleDefinition, paragraph = true): string {
   const declarations: string[] = [];
   if (style.fontFamily && safeFont(style.fontFamily)) {
     const fallback = /mono|consolas|courier|fira code/i.test(style.fontFamily) ? 'monospace' : /inter|arial|calibri|segoe|sans|verdana|tahoma/i.test(style.fontFamily) ? 'sans-serif' : 'serif';
@@ -96,7 +97,7 @@ function cssProperties(style: StyleDefinition): string {
   if (typeof style.fontSize === 'number' && Number.isFinite(style.fontSize)) declarations.push(`font-size:${Math.max(6, Math.min(120, style.fontSize))}pt`);
   if (style.color && /^(#[0-9a-f]{3,8}|[a-z]{3,20})$/i.test(style.color)) declarations.push(`color:${style.color}`);
   if (typeof style.lineHeight === 'number' && Number.isFinite(style.lineHeight)) declarations.push(`line-height:${Math.max(1, Math.min(3, style.lineHeight))}`);
-  return declarations.join(';');
+  return [declarations.join(';'),paragraph?paragraphCSS(style):''].filter(Boolean).join(';');
 }
 
 export function styleSheet(styles: Record<string, StyleDefinition>): string {
@@ -107,7 +108,7 @@ export function styleSheet(styles: Record<string, StyleDefinition>): string {
     return style ? { ...(style.basedOn ? resolve(style.basedOn, seen) : {}), ...style } : { name: key };
   };
   const selectors: Record<string, string> = { normal: '.tiptap', h1: '.tiptap h1', h2: '.tiptap h2', h3: '.tiptap h3', h4: '.tiptap h4', h5: '.tiptap h5', h6: '.tiptap h6', quote: '.tiptap blockquote', code: '.tiptap pre,.tiptap code' };
-  return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key))}}`).join('\n')+`\n.notes-list button{${cssProperties(resolve('footnote'))}}`;
+  return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key),key!=='normal')}}`).join('\n')+`.tiptap > p:not([data-style-id]),.tiptap > p[data-style-id=normal]{${paragraphCSS(resolve('normal'))}}`+`\n.notes-list button{${cssProperties(resolve('footnote'))}}`;
 }
 
 export function resolveFont(requested: string, available: string[]): { family: string; substituted: boolean } {

@@ -1,3 +1,4 @@
+import {validateParagraphStyle} from './paragraph-style.mjs';
 import {validateLayout} from './layout.mjs';
 const MAX_FILE_BYTES = 64 * 1024 * 1024;
 const MAX_NODES = 250_000;
@@ -325,6 +326,7 @@ function validateDocument(value) {
   if (!plain(value.styles) || Object.keys(value.styles).length > 1000)
     invalid('Die Formatvorlagen fehlen oder sind zu umfangreich.');
   for (const [key, style] of Object.entries(value.styles)) {
+    try{validateParagraphStyle(style||{});}catch(error){invalid(error.message);}
     if (['__proto__', 'prototype', 'constructor'].includes(key))
       invalid('Der Inhalt enthält einen unzulässigen Schlüssel.');
     if (!/^[a-zA-Z][\w-]{0,60}$/.test(key) || !plain(style))
