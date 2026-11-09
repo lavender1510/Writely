@@ -60,3 +60,5 @@ nspell 2.1.5: MIT. Die Wörterbuchdaten sind getrennte, unverändert mitgeliefer
 - `hash-wasm` 4.13.0: MIT, Argon2id-WASM. [Vollständige Lizenz](licenses/LICENSE-hash-wasm.txt). AES-GCM verwendet die Web-Crypto-API der jeweiligen Laufzeit.
 - Capacitor Core/Android/CLI 8.6.0 und App 8.1.2: MIT. [Capacitor-Lizenz](licenses/LICENSE-capacitor.txt). Keine verpflichtenden Online-Dienste.
 - AndroidX-Abhängigkeiten: Apache-2.0, aufgelöst über Gradle. Android-Quellprojekt und Builddateien benennen die konkreten Bibliotheken.
+
+Browser-Officeadapter: Buffer 6.0.3 (MIT), vollständiger Lizenztext unter `licenses/LICENSE-buffer.txt`. Die bereits verwendeten Bibliotheken docx, JSZip und Mammoth werden auch im Android-Bundle genutzt.

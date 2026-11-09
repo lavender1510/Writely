@@ -22,12 +22,12 @@ import org.json.JSONObject;
 public class WritelyFilesPlugin extends Plugin {
     private static final int LIMIT=90*1024*1024;
     private AtomicFile file(){return new AtomicFile(new File(getContext().getNoBackupFilesDir(),"workspace.sealed"));}
-    private String read(InputStream input) throws IOException {
+    private String read(InputStream input,boolean binary) throws IOException {
         if(input==null)throw new IOException();
         try(InputStream in=input;ByteArrayOutputStream out=new ByteArrayOutputStream()){
             byte[] buffer=new byte[16384];int n;
             while((n=in.read(buffer))!=-1){if(out.size()+n>LIMIT)throw new IOException("Datei zu groß");out.write(buffer,0,n);}
-            return out.toString(StandardCharsets.UTF_8.name());
+            return binary?android.util.Base64.encodeToString(out.toByteArray(),android.util.Base64.NO_WRAP):out.toString(StandardCharsets.UTF_8.name());
         }
     }
     private void validate(String text) throws Exception {
@@ -46,7 +46,7 @@ public class WritelyFilesPlugin extends Plugin {
     }
     @PluginMethod public void readSealed(PluginCall call){
         try{JSObject result=new JSObject();String text;
-            try{text=read(file().openRead());}catch(FileNotFoundException e){result.put("text",JSONObject.NULL);call.resolve(result);return;}
+            try{text=read(file().openRead(),false);}catch(FileNotFoundException e){result.put("text",JSONObject.NULL);call.resolve(result);return;}
             validate(text);result.put("text",text);call.resolve(result);
         }catch(Exception e){call.reject("Der verschlüsselte Tresor konnte nicht gelesen werden.");}
     }
@@ -66,7 +66,8 @@ public class WritelyFilesPlugin extends Plugin {
             try(Cursor cursor=getContext().getContentResolver().query(uri,null,null,null,null)){
                 if(cursor!=null&&cursor.moveToFirst()){int column=cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME);if(column>=0)name=cursor.getString(column);}
             }
-            call.resolve(new JSObject().put("name",name).put("text",read(getContext().getContentResolver().openInputStream(uri))));
+            boolean binary=name.toLowerCase(java.util.Locale.ROOT).matches(".*\\.(docx|odt)$");
+            call.resolve(new JSObject().put("name",name).put(binary?"base64":"text",read(getContext().getContentResolver().openInputStream(uri),binary)));
         }catch(Exception e){call.reject("Die ausgewählte Datei konnte nicht geöffnet werden.");}
     }
     @PluginMethod public void saveFile(PluginCall call){
@@ -79,7 +80,7 @@ public class WritelyFilesPlugin extends Plugin {
         if(call==null)return;
         if(result.getResultCode()!=Activity.RESULT_OK||result.getData()==null){call.resolve(new JSObject().put("cancelled",true));return;}
         try(OutputStream out=getContext().getContentResolver().openOutputStream(result.getData().getData(),"wt")){
-            if(out==null)throw new IOException();out.write(call.getString("text").getBytes(StandardCharsets.UTF_8));call.resolve(new JSObject().put("cancelled",false));
+            if(out==null)throw new IOException();out.write(Boolean.TRUE.equals(call.getBoolean("base64"))?android.util.Base64.decode(call.getString("text"),android.util.Base64.NO_WRAP):call.getString("text").getBytes(StandardCharsets.UTF_8));call.resolve(new JSObject().put("cancelled",false));
         }catch(Exception e){call.reject("Die Exportdatei konnte nicht geschrieben werden.");}
     }
 }

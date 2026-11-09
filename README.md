@@ -1,8 +1,8 @@
 # Writely
 
-Eine lokale Schreibapp mit deutscher Oberfläche. Der veröffentlichte Windows-Stand ist **0.4.0-alpha.1**. Dieser Entwicklungsbranch **0.5.0-prototype.1** ergänzt einen gemeinsamen Dokumentkern, einen tatsächlich verschlüsselten Tresor und einen Android-Prototyp. Er ist noch keine vollständige plattformübergreifende Version.
+Eine lokale Schreibapp mit deutscher Oberfläche. Der veröffentlichte Windows-Stand ist **0.4.0-alpha.1**. Dieser Entwicklungsbranch **0.5.0-alpha.2** ergänzt einen gemeinsamen Dokumentkern, einen tatsächlich verschlüsselten Tresor und einen Android-Prototyp. Er ist noch keine vollständige plattformübergreifende Version.
 
-[Entwicklungsplan und Ausgangsanalyse](docs/CROSS-PLATFORM-PLAN.md) · [Sicherheitsmodell und Dateiformat](docs/SECURITY-MODEL.md) · [Android, Builds und Funktionsstand](docs/ANDROID-PROTOTYPE.md).
+[Android-Paritätsmatrix und aktuelle Abweichungen](docs/ANDROID-PARITY.md) · [Entwicklungsplan und Ausgangsanalyse](docs/CROSS-PLATFORM-PLAN.md) · [Sicherheitsmodell und Dateiformat](docs/SECURITY-MODEL.md) · [Android, Builds und Funktionsstand](docs/ANDROID-PROTOTYPE.md).
 
 Windows: Im Startbildschirm **Verschlüsselter Tresor · Vorschau** öffnen. Der Tresor schützt seinen eigenen Arbeitsbereich einschließlich Ordnern, Papierkorb und Versionen. Bestehende Windows-Dokumente werden dadurch nicht nachträglich verschlüsselt. Kein Release und keine Play-Store-Veröffentlichung erfolgen automatisch.
 

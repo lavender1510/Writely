@@ -65,6 +65,13 @@ public class VaultInstrumentedTest {
             InstrumentationRegistry.getInstrumentation().sendStringSync(" Android");
             until(scenario,"document.querySelector('.secure-prose').textContent.includes('Android')");
             until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
+            js(scenario,"document.querySelector('[aria-label=\"Erweiterte Werkzeuge\"]').click()");
+            js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Layout').click()");
+            js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Seite einrichten').click()");
+            until(scenario,"!!document.querySelector('[aria-label=Papierformat]')");
+            js(scenario,"(()=>{const e=document.querySelector('[aria-label=Papierformat]');e.value='A5';e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
+            js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Layout anwenden').click()");
+            until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
             js(scenario,"document.querySelector('[aria-label=\"Jetzt sperren\"]').click()");
             until(scenario,"!document.querySelector('.secure-prose')&&!document.body.textContent.includes('Windows ↔ Android')");
             assertFalse(new String(java.nio.file.Files.readAllBytes(target.toPath()),StandardCharsets.UTF_8).contains("Windows ↔ Android"));

@@ -69,7 +69,7 @@ export function NoteDialog({
           />
         </label>
         <p>
-          Nummerierung wird automatisch aktualisiert. Notentexte werden als Klartext gespeichert.
+          Nummerierung wird automatisch aktualisiert. Notentexte sind unformatierter Text und werden mit dem Dokument gespeichert.
         </p>
         <div className="modal-actions">
           {attrs && (
