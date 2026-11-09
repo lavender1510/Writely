@@ -39,7 +39,13 @@ jobs:
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          script: cd android && ./gradlew --no-daemon connectedDebugAndroidTest
+          script: |
+            cd android
+            ./gradlew --no-daemon connectedDebugAndroidTest
+            cd ..
+            mkdir -p work
+            adb exec-out run-as de.writely.mobile cat no_backup/workspace.sealed > work/android-roundtrip.writely
+            node --import tsx scripts/verify-android-roundtrip.mts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
@@ -48,3 +54,5 @@ jobs:
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/reports/androidTests/
             android/app/build/outputs/androidTest-results/
+            work/android-roundtrip.json
+            work/android-roundtrip.writely
