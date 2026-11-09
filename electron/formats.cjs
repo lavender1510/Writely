@@ -248,24 +248,26 @@ function resolveStyle(document, key, visited = new Set()) {
   const style = document?.styles?.[key] || {};
   return { ...(style.basedOn ? resolveStyle(document, style.basedOn, visited) : {}), ...style };
 }
-function styleCss(style) {
+function styleCss(style, paragraphProperties = true) {
   const values = [];
   if (typeof style.fontFamily === 'string' && /^[\w\s,'"-]{1,120}$/u.test(style.fontFamily)) values.push(`font-family:${style.fontFamily}`);
   if (typeof style.fontSize === 'number' && style.fontSize >= 4 && style.fontSize <= 300) values.push(`font-size:${style.fontSize}pt`);
   if (typeof style.color === 'string' && /^#[0-9a-fA-F]{3,8}$/.test(style.color)) values.push(`color:${style.color}`);
   if (typeof style.lineHeight === 'number' && style.lineHeight >= 1 && style.lineHeight <= 3) values.push(`line-height:${style.lineHeight}`);
+  const paragraph=require('../core/paragraph-style.mjs').paragraphCSS(style);if(paragraph&&paragraphProperties)values.push(paragraph);
   return values.join(';');
 }
 function exportStyles(document) {
   const rules = [];
   if(document.theme==='Dunkel')rules.push('body{background:#25212d}');
   for (const [key, selector] of Object.entries({ normal: 'body,p,li,td,th', h1: 'h1', h2: 'h2', h3: 'h3', h4: 'h4', h5: 'h5', h6: 'h6', quote: 'blockquote', code: 'pre,code' })) {
-    const css = styleCss(resolveStyle(document, key));
+    const css = styleCss(resolveStyle(document, key),key!=='normal');
     if (css) rules.push(`${selector}{${css}}`);
   }
   for (const key of Object.keys(document?.styles || {})) {
     if (/^[a-zA-Z0-9_-]{1,100}$/.test(key)) rules.push(`[data-style-id="${key}"],[data-style="${key}"]{${styleCss(resolveStyle(document, key))}}`);
   }
+  const normalParagraph=require('../core/paragraph-style.mjs').paragraphCSS(resolveStyle(document,'normal'));if(normalParagraph)rules.push(`p:not([data-style-id]):not([data-style]){${normalParagraph}}`);
   if(document.styles?.coverTitle)rules.push('hr:first-of-type{break-after:page}');
   return rules.join('\n');
 }

@@ -52,7 +52,9 @@ async function exportDocx(document) {
     return result;
   }
   function paragraphStyle(style) {
-    return typeof style.lineHeight === 'number' && style.lineHeight >= 1 && style.lineHeight <= 3 ? { spacing: { line: Math.round(style.lineHeight * 240) } } : {};
+    const spacing={...(typeof style.lineHeight==='number'?{line:Math.round(style.lineHeight*240)}:{}),...(style.spaceBeforePt!==undefined?{before:Math.round(style.spaceBeforePt*20)}:{}),...(style.spaceAfterPt!==undefined?{after:Math.round(style.spaceAfterPt*20)}:{})};
+    const mm=n=>Math.round(n/25.4*1440);
+    return {spacing,indent:{...(style.indentLeftMm!==undefined?{left:mm(style.indentLeftMm)}:{}),...(style.indentRightMm!==undefined?{right:mm(style.indentRightMm)}:{}),...(style.firstLineMm!==undefined?(style.firstLineMm<0?{hanging:mm(-style.firstLineMm)}:{firstLine:mm(style.firstLineMm)}):{})},...(style.alignment?{alignment:style.alignment==='justify'?'both':style.alignment}:{}),keepNext:style.keepWithNext,keepLines:style.keepTogether,pageBreakBefore:style.pageBreakBefore};
   }
   function inline(nodes, inherited = {}) {
     return (nodes || []).flatMap(node => {
@@ -122,7 +124,7 @@ async function exportDocx(document) {
       const isCustom = attrs.styleId && customIds[attrs.styleId] && !/^h[1-6]$/.test(attrs.styleId);
       const style = isCustom ? { style: customIds[attrs.styleId], ...(node.type === 'heading' ? { outlineLevel: headingLevel - 1 } : {}) } : node.type === 'heading' ? { heading: HeadingLevel[`HEADING_${headingLevel}`] } : {};
       const spacing = paragraphStyle(resolved).spacing || {};
-      const result = new Paragraph({ ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: node.type==='heading'?[new docx.Bookmark({id:bookmarkName(referenceData.headings.find(h=>h.node===node)?.id||attrs.anchorId),children:inline(node.content,runStyle(resolved))})]:inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
+      const result = new Paragraph({ ...paragraphStyle(resolved), ...style, ...(list || {}), ...(alignment ? { alignment } : {}), spacing: { after: 180, ...spacing }, children: node.type==='heading'?[new docx.Bookmark({id:bookmarkName(referenceData.headings.find(h=>h.node===node)?.id||attrs.anchorId),children:inline(node.content,runStyle(resolved))})]:inline(node.content, { ...runStyle(resolved), ...(node.type === 'codeBlock' ? { font: 'Consolas' } : {}) }) });
       // Number only the first paragraph in a list item, leaving subsequent blocks unnumbered.
       list = null;
       return [result];
