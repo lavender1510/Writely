@@ -18,7 +18,7 @@ test('mobile vault persists only ciphertext, locks previews and reopens with pas
   expect(sealed).not.toContain('Geheimer Titel');expect(sealed).not.toContain('vertraulicher Text');
   const snapshot=await unlockSealed(sealed!,password);
   expect((snapshot.payload as any).documents[0].document.title).toBe('Geheimer Titel Grüße');forget(snapshot);
-  await page.getByRole('button',{name:'Jetzt sperren',exact:true}).click();
+  await page.getByRole('button',{name:'Dokumentaktionen',exact:true}).click();await page.getByRole('button',{name:'Jetzt sperren',exact:true}).click();
   await expect(page.getByRole('button',{name:'Tresor entsperren',exact:true})).toBeVisible();
   await expect(page.getByRole('textbox',{name:'Geschütztes Dokument bearbeiten'})).toHaveCount(0);
   expect(await page.locator('body').innerText()).not.toContain('Geheimer Titel');
