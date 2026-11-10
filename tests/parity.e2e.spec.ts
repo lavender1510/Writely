@@ -24,7 +24,7 @@ test('mobile table tools add real rows and notes remain editable',async({page})=
 });
 test('browser Office exporter downloads a real DOCX with intact private document data',async({page})=>{
   page.on('dialog',d=>d.accept());
-  await page.getByLabel('Exportformat',{exact:true}).selectOption('docx');
+  await page.getByRole('button',{name:'Dokumentaktionen',exact:true}).click();await page.getByLabel('Exportformat',{exact:true}).selectOption('docx');
   const download=page.waitForEvent('download');await page.getByRole('button',{name:'Unverschlüsselt exportieren …',exact:true}).click();
   const file=await download;expect(file.suggestedFilename()).toBe('Writely-Dokument.docx');
   const {recover,openZip}=await import('../core/zip-roundtrip.mjs');const bytes=await readFile((await file.path())!);

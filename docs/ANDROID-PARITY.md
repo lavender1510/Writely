@@ -119,3 +119,5 @@ Vor dem Wechsel von einer älteren Debug-APK ein verschlüsseltes Tresor-Backup 
 - Android: App und Test-APK bauen lokal. Die native Instrumentierung ergänzt die A5-Auswahl; der Host-Roundtrip prüft dieses Layout nach der Android-Bearbeitung. Der abschließende Emulatorlauf wird im PR verlinkt; ein lokaler Build allein gilt nicht als Gerätemessung.
 
 Dies ist kein Nachweis für alle Bildschirmtastaturen, große Medienbibliotheken, sämtliche Dialogoptionen auf echten Tablets oder verlustfreie Fremd-Office-Konvertierung. Offene Zeilen der Matrix bleiben offen und werden nicht durch ein sichtbares Menü als erledigt gezählt.
+
+Aktuelles UI-Redesign, tatsächliche Bedienwege und weiterhin offene Abweichungen: [ANDROID-REDESIGN.md](ANDROID-REDESIGN.md). Insbesondere bleiben echte Pagination, Handschrift/Checkboxschema, mobiler Print/PDF und individuelle Schlüsselbereiche offen.

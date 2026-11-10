@@ -12,7 +12,7 @@ import {normalizeLayout} from '../core/layout.mjs';
 import type {DocumentFile} from '../core/types';
 
 export default function MobileTools({editor,document,replace,onSave,onClose}:{editor:Editor;document:DocumentFile;replace:(d:DocumentFile)=>void;onSave:(kind:string,name:string,d:DocumentFile)=>Promise<void>;onClose:()=>void}){
-  const [tab,setTab]=useState('Text'),[dialog,setDialog]=useState(''),[message,setMessage]=useState('');
+  const [tab,setTab]=useState(editor.isActive('table')?'Tabelle':editor.isActive('image')?'Einfügen':'Text'),[dialog,setDialog]=useState(''),[message,setMessage]=useState('');
   const current=()=>{let layout=normalizeLayout(document.page),pos:number|null=null;editor.state.doc.forEach((node,p)=>{if(p<=editor.state.selection.from&&node.type.name==='layoutBreak'&&node.attrs.kind==='section'){layout=normalizeLayout(node.attrs.layout||layout);pos=p;}});return {layout,pos};};
   const apply=(layout:any,scope:string)=>{const section=current();editor.chain().focus().command(({tr})=>{closeHistory(tr);if(scope==='current'&&section.pos!==null){const node=tr.doc.nodeAt(section.pos)!;tr.setNodeMarkup(section.pos,undefined,{...node.attrs,layout});}else if(scope==='new'){const node=editor.schema.nodes.layoutBreak.create({kind:'section',id:crypto.randomUUID(),layout});tr.replaceSelectionWith(node);}else tr.setDocAttribute('pageLayout',layout);return true;}).run();};
   const styleId=editor.getAttributes(editor.isActive('heading')?'heading':'paragraph').styleId||(editor.isActive('heading')?'h'+editor.getAttributes('heading').level:'normal');

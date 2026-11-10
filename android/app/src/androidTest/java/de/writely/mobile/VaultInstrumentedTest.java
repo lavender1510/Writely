@@ -51,6 +51,11 @@ public class VaultInstrumentedTest {
             until(scenario,"document.body.textContent.includes('Windows ↔ Android')");
             js(scenario,"document.querySelector('.secure-card-open').click()");
             until(scenario,"!!document.querySelector('.secure-prose table')&&!!document.querySelector('.secure-prose img')");
+            assertEquals("true",js(scenario,"(()=>{const t=document.querySelector('.secure-tools');return t.scrollWidth>t.clientWidth&&document.documentElement.scrollWidth<=innerWidth})()"));
+            js(scenario,"document.querySelector('[aria-label=\"Lesemodus\"]').click()");
+            until(scenario,"document.querySelector('.secure-prose').contentEditable==='false'&&getComputedStyle(document.querySelector('.secure-tools')).display==='none'");
+            js(scenario,"document.querySelector('[aria-label=\"Lesemodus\"]').click()");
+            until(scenario,"document.querySelector('.secure-prose').contentEditable==='true'");
             // A real touch establishes Android's input connection. Programmatic
             // DOM focus alone can race WebView/IME startup and lose key events.
             JSONArray point=new JSONArray(js(scenario,"(()=>{const e=document.querySelector('.secure-prose > p');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
@@ -72,6 +77,8 @@ public class VaultInstrumentedTest {
             js(scenario,"(()=>{const e=document.querySelector('[aria-label=Papierformat]');e.value='A5';e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
             js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Layout anwenden').click()");
             until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
+            js(scenario,"document.querySelector('[aria-label=\"Dokumentaktionen\"]').click()");
+            until(scenario,"!!document.querySelector('[aria-label=\"Jetzt sperren\"]')");
             js(scenario,"document.querySelector('[aria-label=\"Jetzt sperren\"]').click()");
             until(scenario,"!document.querySelector('.secure-prose')&&!document.body.textContent.includes('Windows ↔ Android')");
             assertFalse(new String(java.nio.file.Files.readAllBytes(target.toPath()),StandardCharsets.UTF_8).contains("Windows ↔ Android"));
