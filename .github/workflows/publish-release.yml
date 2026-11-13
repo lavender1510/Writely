@@ -1,4 +1,4 @@
-name: Publish verified Windows release
+name: Publish verified Windows and Android release
 
 on:
   workflow_dispatch:
@@ -6,29 +6,38 @@ on:
       tag:
         description: Existing draft release tag
         required: true
-        default: v0.1.0-alpha.1
       run_id:
-        description: Successful Windows build run containing both artifacts
+        description: Successful Windows build run
         required: true
-        default: '42485001158'
+      android_run_id:
+        description: Successful Android build and emulator run
+        required: true
       source_sha:
-        description: Exact tested source commit
+        description: Exact tested application source commit
         required: true
-        default: 25a7a62037b05ad68ab59588df10ff4639e4b5fd
+      android_sha256:
+        description: SHA-256 of the locally signature-verified Android APK
+        required: true
 
 permissions:
   contents: write
   actions: read
 
+concurrency:
+  group: writely-release-${{ inputs.tag }}
+  cancel-in-progress: false
+
 jobs:
   publish:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       RELEASE_TAG: ${{ inputs.tag }}
       BUILD_RUN_ID: ${{ inputs.run_id }}
+      ANDROID_RUN_ID: ${{ inputs.android_run_id }}
       SOURCE_SHA: ${{ inputs.source_sha }}
+      APK_SHA256: ${{ inputs.android_sha256 }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -36,49 +45,105 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-      - name: Verify successful build and matching draft
+      - name: Verify both successful builds and matching draft
         shell: bash
         run: |
           node --input-type=module <<'JS'
           import { execFileSync } from 'node:child_process';
-          const { RELEASE_TAG: tag, BUILD_RUN_ID: run, SOURCE_SHA: sha, GITHUB_REPOSITORY: repo } = process.env;
-          if (!/^v\d+\.\d+\.\d+[-.\w]*$/.test(tag) || !/^\d+$/.test(run) || !/^[a-f0-9]{40}$/.test(sha)) throw new Error('Invalid release parameters');
+          import {readFileSync,writeFileSync} from 'node:fs';
+          const { RELEASE_TAG: tag, BUILD_RUN_ID: win, ANDROID_RUN_ID: android, SOURCE_SHA: sha, APK_SHA256: apk, GITHUB_REPOSITORY: repo } = process.env;
+          if (!/^v\d+\.\d+\.\d+[-.\w]*$/.test(tag) || !/^\d+$/.test(win) || !/^\d+$/.test(android) || !/^[a-f0-9]{40}$/.test(sha) || !/^[a-f0-9]{64}$/.test(apk)) throw new Error('Invalid release parameters');
+          if ('v'+JSON.parse(readFileSync('package.json')).version!==tag) throw new Error('Release and source versions differ');
           const get = path => JSON.parse(execFileSync('gh', ['api', path], { encoding: 'utf8' }));
-          const build = get(`repos/${repo}/actions/runs/${run}`);
-          if (build.conclusion !== 'success' || build.head_sha !== sha) throw new Error('Release requires a successful build of the exact commit');
+          for(const [id,path] of [[win,'.github/workflows/windows.yml'],[android,'.github/workflows/android.yml']]){
+            const build=get(`repos/${repo}/actions/runs/${id}`);
+            if(build.conclusion!=='success'||build.head_sha!==sha||build.path!==path||build.repository.full_name!==repo)throw new Error('Both platform builds must pass at the exact source commit');
+          }
           const release = get(`repos/${repo}/releases?per_page=100`).find(item => item.tag_name === tag);
           if (!release?.draft || release.target_commitish !== sha) throw new Error('Expected the prepared draft for the tested commit');
+          writeFileSync('release-draft.json',JSON.stringify(release));
           JS
       - uses: actions/download-artifact@v4
         with:
           name: Writely-Windows-x64
-          path: release-assets
+          path: windows-assets
           run-id: ${{ inputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
       - uses: actions/download-artifact@v4
         with:
           name: Desktop-test-evidence
-          path: test-evidence
+          path: windows-evidence
           run-id: ${{ inputs.run_id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
-      - name: Prepare example, test evidence and checksums
+      - uses: actions/download-artifact@v4
+        with:
+          name: Writely-Android-debug
+          path: android-artifacts
+          run-id: ${{ inputs.android_run_id }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Validate packages, collect real evidence and calculate checksums
         shell: bash
         run: |
-          node --experimental-strip-types --input-type=module <<'JS'
-          import { createDocument } from './src/document.ts';
-          import { writeFileSync, copyFileSync, readFileSync, readdirSync } from 'node:fs';
-          import { createHash } from 'node:crypto';
-          const report = JSON.parse(readFileSync('test-evidence/report.json', 'utf8'));
-          if (report.platform !== 'win32-x64' || report.failure || report.pageErrors.length) throw new Error('Windows desktop evidence failed');
-          copyFileSync('test-evidence/report.json', 'release-assets/Writely-Testprotokoll-Windows.json');
-          writeFileSync('release-assets/Writely-Beispiel.writely', JSON.stringify(createDocument('welcome'), null, 2));
-          const files = readdirSync('release-assets').filter(name => name !== 'SHA256SUMS.txt').sort();
-          if (files.filter(name => name.endsWith('.zip')).length !== 1) throw new Error('Expected exactly one Windows ZIP');
-          const sums = files.map(name => `${createHash('sha256').update(readFileSync(`release-assets/${name}`)).digest('hex')}  ${name}`);
-          writeFileSync('release-assets/SHA256SUMS.txt', sums.join('\n') + '\n');
-          JS
-      - name: Upload assets and publish prerelease
+          python3 <<'PY'
+          import pathlib,json,hashlib,shutil,zipfile,os
+          version=os.environ['RELEASE_TAG'][1:]
+          out=pathlib.Path('release-assets');out.mkdir()
+          windows=pathlib.Path('windows-assets')
+          for name in [f'Writely-{version}-Windows-x64.zip',f'Writely-{version}-Setup-x64.exe']:
+            p=windows/name
+            assert p.is_file() and p.stat().st_size>1000000,name
+            if p.suffix=='.exe':
+              with p.open('rb') as f:assert f.read(2)==b'MZ'
+            else:
+              with zipfile.ZipFile(p) as z:
+                assert z.testzip() is None
+                executable=[n for n in z.namelist() if n=='Writely.exe' or n.endswith('/Writely.exe')]
+                assert len(executable)==1
+                with z.open(executable[0]) as f:assert f.read(2)==b'MZ'
+            shutil.copy2(p,out/name)
+          apks=list(pathlib.Path('android-artifacts').rglob('app-debug.apk'));assert len(apks)==1
+          def digest(p):
+            h=hashlib.sha256()
+            with p.open('rb') as f:
+              while chunk:=f.read(1024*1024):h.update(chunk)
+            return h.hexdigest()
+          assert digest(apks[0])==os.environ['APK_SHA256'],'APK differs from signature-verified download'
+          with zipfile.ZipFile(apks[0]) as z:
+            assert z.testzip() is None
+            assert 'AndroidManifest.xml' in z.namelist() and 'classes.dex' in z.namelist()
+            assert not any(n.endswith(('book-bundle-v1.writely','sealed-v1.writely')) for n in z.namelist()),'Test vectors must not ship in the APK'
+          shutil.copy2(apks[0],out/f'Writely-{version}-Android-debug.apk')
+          evidence=pathlib.Path('windows-evidence');reports={}
+          for source,label,minimum in [('desktop-smoke/report.json','Windows',18),('secure-desktop/report.json','Tresor-Windows',4),('book-desktop/report.json','Buecher-Windows',6)]:
+            p=evidence/source;d=json.loads(p.read_text());assert not d.get('failure') and not d.get('pageErrors') and not d.get('errors')
+            assert len(d['checks'])>=minimum
+            reports[label]=d
+            shutil.copy2(p,out/f'Writely-Testprotokoll-{label}.json')
+          assert reports['Windows']['platform']=='win32-x64'
+          assert reports['Buecher-Windows']['platform']=='win32'
+          p=pathlib.Path('android-artifacts/work/android-roundtrip.json');d=json.loads(p.read_text());assert len(d['checks'])>=8
+          shutil.copy2(p,out/'Writely-Testprotokoll-Android.json')
+          manifest={'version':version,'sourceCommit':os.environ['SOURCE_SHA'],'windowsBuildRun':os.environ['BUILD_RUN_ID'],'androidBuildRun':os.environ['ANDROID_RUN_ID'],'androidApkSha256':digest(apks[0]),'androidDistribution':'debug','windowsChecks':len(reports['Windows']['checks']),'bookWindowsChecks':len(reports['Buecher-Windows']['checks']),'androidInteropChecks':len(d['checks'])}
+          (out/'Writely-Buildnachweis.json').write_text(json.dumps(manifest,indent=2)+'\n')
+          draft=json.loads(pathlib.Path('release-draft.json').read_text())
+          repo=os.environ['GITHUB_REPOSITORY']
+          notes=draft['body']+'\n\n### Ausgeführte Prüfungen\n\n103 Unit-Tests und 33 Playwright-Bedienprüfungen erfolgreich. Windows: 18 native Desktop-Prüfungen, vier Tresorprüfungen und sechs Buchprüfungen; die gepackte Anwendung wurde erneut getestet. Android: API-35-Instrumentierung und acht verschlüsselte Austauschprüfungen erfolgreich. Poppler-Schrifteinbettung zusätzlich lokal unter Linux geprüft; im Windows-Runner ist diese externe Prüfung als übersprungen ausgewiesen. Keine Behauptung eines Tests auf allen realen Geräten.\n\n'
+          notes+=f"Geprüfter Commit: `{manifest['sourceCommit']}`. [Windows-CI](https://github.com/{repo}/actions/runs/{manifest['windowsBuildRun']}) · [Android-CI](https://github.com/{repo}/actions/runs/{manifest['androidBuildRun']}).\n"
+          pathlib.Path('release-notes.md').write_text(notes)
+          (out/'RELEASE-NOTES.md').write_text(notes)
+          (out/'SHA256SUMS.txt').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in sorted(out.iterdir()) if p.is_file() and p.name!='SHA256SUMS.txt'))
+          print(json.dumps(manifest,indent=2))
+          PY
+      - name: Upload verified assets and publish prerelease
         shell: bash
         run: |
           gh release upload "$RELEASE_TAG" release-assets/* --clobber --repo "$GITHUB_REPOSITORY"
-          gh release edit "$RELEASE_TAG" --draft=false --prerelease --repo "$GITHUB_REPOSITORY"
+          gh release edit "$RELEASE_TAG" --notes-file release-notes.md --draft=false --prerelease --latest=false --repo "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Release-verification-evidence
+          path: |
+            release-assets/SHA256SUMS.txt
+            release-assets/Writely-Buildnachweis.json
+            release-assets/Writely-Testprotokoll-*.json
