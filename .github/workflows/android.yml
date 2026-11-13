@@ -40,6 +40,12 @@ jobs:
           profile: pixel_6
           disable-animations: true
           script: |
+            adb shell input keyevent KEYCODE_WAKEUP
+            adb shell wm dismiss-keyguard
+            # The disposable AOSP runner's Launcher3 can ANR during cold boot and
+            # intercept test touches. Isolate only this unrelated launcher;
+            # Writely/IME and application ANR detection remain fully enabled.
+            adb shell pm disable-user --user 0 com.android.launcher3
             ./android/gradlew -p android --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest
             mkdir -p work
             adb exec-out run-as de.writely.mobile cat no_backup/workspace.sealed > work/android-roundtrip.writely
