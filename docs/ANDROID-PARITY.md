@@ -121,3 +121,5 @@ Vor dem Wechsel von einer älteren Debug-APK ein verschlüsseltes Tresor-Backup 
 Dies ist kein Nachweis für alle Bildschirmtastaturen, große Medienbibliotheken, sämtliche Dialogoptionen auf echten Tablets oder verlustfreie Fremd-Office-Konvertierung. Offene Zeilen der Matrix bleiben offen und werden nicht durch ein sichtbares Menü als erledigt gezählt.
 
 Aktuelles UI-Redesign, tatsächliche Bedienwege und weiterhin offene Abweichungen: [ANDROID-REDESIGN.md](ANDROID-REDESIGN.md). Insbesondere bleiben echte Pagination, Handschrift/Checkboxschema, mobiler Print/PDF und individuelle Schlüsselbereiche offen.
+
+Weiterentwicklung ab 0.5.0-alpha.4: Gemeinsame Zielordner-Transaktionen, Ordnerdialoge mit Farbe/Symbol/Pin, Breadcrumbs, Mehrfachverschieben und rekursiver Ordnerpapierkorb. Windows- und Android-Bibliothek erhalten dieselben Ordnerinvarianten; Speicheradapter bleiben getrennt. Vollständige Bestandsanalyse, Datenformatänderungen, messbare Tresorgrenzen und Bücher-Meilensteine: [BOOKS-ROADMAP.md](BOOKS-ROADMAP.md). Der Bücher-Modus und echte Pagination werden damit noch nicht als implementiert ausgewiesen.

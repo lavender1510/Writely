@@ -34,6 +34,8 @@ jobs:
         run: npm run test:desktop
       - name: Test encrypted Windows workspace
         run: npm run test:secure-desktop
+      - name: Measure synthetic library workloads
+        run: node --import tsx scripts/benchmark-library.mts
       - name: Package Windows x64
         run: npm exec electron-builder -- --win zip nsis --x64 --publish never
       - name: Test packaged Windows application
@@ -51,6 +53,8 @@ jobs:
         with:
           name: Desktop-test-evidence
           path: |
+            work/books/*.json
+            work/books/*.png
             work/secure-desktop/report.json
             work/secure-desktop/secure-desktop.png
             work/desktop-smoke/report.json

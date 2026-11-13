@@ -1,8 +1,9 @@
+const {validateFolders,validateFolderTrash,activeFolder,saveFolder,trashFolderTree,restoreFolderTree,moveDocuments}=require('../core/folders.mjs');
 const fs = require('node:fs/promises');
 const path = require('node:path');
 const { randomUUID, createHash } = require('node:crypto');
 const { atomicWrite, readDocument, validateDocument } = require('./storage.cjs');
-const empty = () => ({ version: 2, folders: [], documents: [], templates: [], styleSets: [] });
+const empty = () => ({ version: 3, folders: [], documents: [], templates: [], styleSets: [] });
 const validId = (id) =>
   typeof id === 'string' &&
   id.length > 0 &&
@@ -18,7 +19,7 @@ const textOf = (node) =>
           .map(textOf)
           .join(['paragraph', 'heading'].includes(node.type) ? '' : ' ');
 function validateIndex(index) {
-  if (index?.version !== undefined && ![1, 2].includes(index.version))
+  if (index?.version !== undefined && ![1, 2, 3].includes(index.version))
     throw new Error('Diese Bibliotheksversion wird noch nicht unterstützt.');
   if (!index || typeof index !== 'object')
     throw new Error('Die Datei enthält keinen gültigen Bibliotheksindex.');
@@ -32,6 +33,7 @@ function validateIndex(index) {
       ids.add(item.id);
     }
   }
+  validateFolders(index.folders);validateFolderTrash(index);
   const folders = new Map(index.folders.map((f) => [f.id, f]));
   for (const f of index.folders) {
     if (typeof f.name !== 'string' || !f.name.trim() || f.name.length > 120)
@@ -48,6 +50,7 @@ function validateIndex(index) {
     }
   }
   for (const d of index.documents) {
+    if(!d.deletedAt)activeFolder(index.folders,d.folderId);
     if (
       !storageId(d.storageId) ||
       typeof d.title !== 'string' ||
@@ -115,7 +118,7 @@ class Library {
       if (!used.has(key + '.writely')) this.textCache.delete(key);
   }
   async write(index) {
-    validateIndex(index);
+    index.version=3;validateIndex(index);
     await atomicWrite(path.join(this.root, 'index.json'), JSON.stringify(index));
     await this.cleanup(index).catch(() => {});
   }
@@ -157,16 +160,19 @@ class Library {
           })) || [],
     };
   }
-  async put(document, filePath) {
+  async put(document, filePath, folderId) {
     const serialized = JSON.stringify(validateDocument(document));
     return this.run(async () => {
       const doc = JSON.parse(serialized),
         index = await this.index(),
         old = index.documents.find((d) => d.id === doc.id),
         id = randomUUID();
+      if(old?.deletedAt)throw new Error('Das Dokument liegt im Papierkorb.');
+      const target=folderId===undefined?(old?.folderId??null):folderId;activeFolder(index.folders,target);
       // Revision first, commit the reference second; the previous file is never overwritten.
       await atomicWrite(this.file(id), serialized);
       const record = this.record(doc, old, id, filePath);
+      record.folderId=target;
       index.documents = index.documents.filter((d) => d.id !== doc.id);
       index.documents.push(record);
       try {
@@ -223,19 +229,13 @@ class Library {
     return this.run(async () => {
       const index = await this.index();
       if (action === 'folder-save') {
-        const old = index.folders.find((f) => f.id === data.id);
-        const folder = {
-          id: old?.id || randomUUID(),
-          name: String(data.name || 'Neuer Ordner')
-            .trim()
-            .slice(0, 120),
-          parentId: data.parentId || null,
-          color: /^#[0-9a-f]{6}$/i.test(data.color) ? data.color : '#8a64bc',
-          icon: ['folder', 'book', 'briefcase', 'star'].includes(data.icon) ? data.icon : 'folder',
-        };
-        index.folders = index.folders.filter((f) => f.id !== folder.id);
-        index.folders.push(folder);
-        validateIndex(index);
+        index.folders=saveFolder(index.folders,data,randomUUID());
+      } else if (action === 'folder-trash') {
+        trashFolderTree(index,data.id,randomUUID());
+      } else if (action === 'folder-restore') {
+        restoreFolderTree(index,data.id);
+      } else if (action === 'documents-move') {
+        moveDocuments(index,data.ids,data.folderId);
       } else if (action === 'folder-delete') {
         if (!index.folders.some((f) => f.id === data.id))
           throw new Error('Der Zielordner existiert nicht.');
@@ -246,7 +246,7 @@ class Library {
           for (const f of index.folders) if (ids.has(f.parentId)) ids.add(f.id);
         }
         index.folders = index.folders.filter((f) => !ids.has(f.id));
-        for (const d of index.documents) if (ids.has(d.folderId)) d.folderId = null;
+        for (const d of index.documents) if (ids.has(d.folderId)) {d.folderId = null;delete d.folderTrashBatch;}
       } else if (
         ['document-update', 'document-remove', 'document-restore', 'document-purge'].includes(
           action,
@@ -256,7 +256,7 @@ class Library {
         if (!d) throw new Error('Das Dokument wurde nicht gefunden.');
         if (action === 'document-remove') d.deletedAt = new Date().toISOString();
         if (action === 'document-restore') {
-          delete d.deletedAt;
+          activeFolder(index.folders,d.folderId);delete d.deletedAt;delete d.folderTrashBatch;
           if (!index.folders.some((f) => f.id === d.folderId)) d.folderId = null;
         }
         if (action === 'document-purge') {
@@ -271,7 +271,7 @@ class Library {
           if (data.folderId !== undefined) {
             if (data.folderId && !index.folders.some((f) => f.id === data.folderId))
               throw new Error('Der Zielordner existiert nicht.');
-            d.folderId = data.folderId;
+            activeFolder(index.folders,data.folderId);d.folderId = data.folderId;
           }
           if (typeof data.pinned === 'boolean') d.pinned = data.pinned;
           if (Number.isFinite(data.order)) d.order = data.order;
@@ -340,13 +340,15 @@ class Library {
     return this.run(async () => {
       const index = await this.index(),
         staged = [],
-        folderMap = new Map(source.folders.map((f) => [f.id, randomUUID()]));
+        folderMap = new Map(source.folders.map((f) => [f.id, randomUUID()])),
+        batches=new Map(source.folders.filter(f=>f.trashBatch).map(f=>[f.trashBatch,randomUUID()]));
       try {
         for (const f of source.folders)
           index.folders.push({
             ...f,
             id: folderMap.get(f.id),
             parentId: folderMap.get(f.parentId) || null,
+            trashBatch:f.trashBatch?batches.get(f.trashBatch):undefined,
           });
         for (const d of source.documents) {
           const document = structuredClone(docs.get(d.storageId));
@@ -356,7 +358,7 @@ class Library {
           await atomicWrite(this.file(id), JSON.stringify(document));
           const record = this.record(
             document,
-            { ...d, folderId: folderMap.get(d.folderId) || null, path: undefined },
+            { ...d, folderId: folderMap.get(d.folderId) || null, path: undefined,folderTrashBatch:d.folderTrashBatch?batches.get(d.folderTrashBatch):undefined },
             id,
           );
           delete record.path;

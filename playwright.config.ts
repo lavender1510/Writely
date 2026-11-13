@@ -2,7 +2,7 @@ import { defineConfig } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['**/e2e.spec.ts','**/secure.e2e.spec.ts','**/parity.e2e.spec.ts','**/mobile-design.e2e.spec.ts'],
+  testMatch: ['**/e2e.spec.ts','**/secure.e2e.spec.ts','**/parity.e2e.spec.ts','**/mobile-design.e2e.spec.ts','**/folders.e2e.spec.ts'],
   fullyParallel: false,
   workers: 1,
   timeout: 30_000,
