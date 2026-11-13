@@ -99,6 +99,20 @@ async function until(check, label, timeout = 15000) {
     assert.equal(await window.locator('.tiptap img').count(), 1);
     assert.match(await window.locator('.tiptap strong').textContent(), /fett gesetzter/);
     report.checks.push('native Open reads headings, bold, Unicode, table and embedded PNG');
+    const folderProbe=await window.evaluate(async fixture=>{
+      await window.writely.libraryMutate('folder-save',{name:'Native Zielordner'});
+      const folder=(await window.writely.libraryList()).folders.find(f=>f.name==='Native Zielordner');
+      const probe={...fixture,id:crypto.randomUUID(),title:'Native Ordnerprobe'};
+      await window.writely.libraryPut(probe,undefined,folder.id);
+      await window.writely.autosave({...probe,title:'Native Ordnerprobe gespeichert'});
+      await window.writely.autosave(fixture);
+      await window.writely.open(folder.id); // Known files must retain their original folder.
+      const data=await window.writely.libraryList();
+      return {target:folder.id,created:data.documents.find(d=>d.id===probe.id).folderId,reopened:data.documents.find(d=>d.id===fixture.id).folderId};
+    },fixture);
+    assert.equal(folderProbe.created,folderProbe.target);assert.equal(folderProbe.reopened,null);
+    report.checks.push('native IPC commits creation target and autosave/reopening preserve existing folder');
+
     assert.deepEqual(await window.evaluate(()=>window.writely.spellCheck('de-DE',['Haus','Huas','Größe'])),['Huas']);
     assert.ok((await window.evaluate(()=>window.writely.spellSuggest('de-DE','Huas'))).includes('Haus'));
     await window.evaluate(()=>window.writely.dictionaryChange('de-DE','Writely',false));
