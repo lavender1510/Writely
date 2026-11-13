@@ -49,6 +49,9 @@ jobs:
             ./android/gradlew -p android --no-daemon -Pandroid.injected.androidTest.leaveApksInstalledAfterRun=true :app:connectedDebugAndroidTest
             mkdir -p work
             adb exec-out run-as de.writely.mobile cat no_backup/workspace.sealed > work/android-roundtrip.writely
+            adb exec-out run-as de.writely.mobile tar -C no_backup -cf - books > work/android-books.tar
+            mkdir -p work/android-books
+            tar -xf work/android-books.tar -C work/android-books
             node --import tsx scripts/verify-android-roundtrip.mts
       - uses: actions/upload-artifact@v4
         if: always()
@@ -61,3 +64,4 @@ jobs:
             android/app/build/outputs/androidTest-results/
             work/android-roundtrip.json
             work/android-roundtrip.writely
+            work/android-book-roundtrip.writely

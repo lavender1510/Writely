@@ -1,7 +1,7 @@
 {
   "name": "writely",
-  "version": "0.5.0-alpha.4",
-  "description": "Writely \u2013 ein ruhiger Ort f\u00fcr gute Gedanken. Lokale Schreibapp f\u00fcr Windows.",
+  "version": "0.6.0-alpha.1",
+  "description": "Writely – ein ruhiger Ort für gute Gedanken. Lokale Schreibapp für Windows.",
   "author": "Writely contributors",
   "private": true,
   "main": "electron/main.cjs",
@@ -18,7 +18,8 @@
     "pretest:e2e": "npm run build",
     "android:sync": "npm run build && node scripts/android-sync.cjs",
     "android:build": "npm run android:sync && cd android && ./gradlew --no-daemon assembleDebug",
-    "test:secure-desktop": "node --import tsx scripts/secure-desktop-smoke.mts"
+    "test:secure-desktop": "node --import tsx scripts/secure-desktop-smoke.mts",
+    "test:book-desktop": "node --import tsx scripts/book-desktop-smoke.mts"
   },
   "dependencies": {
     "@capacitor/android": "^8.6.0",
