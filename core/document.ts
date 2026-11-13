@@ -100,13 +100,12 @@ function cssProperties(style: StyleDefinition, paragraph = true): string {
   return [declarations.join(';'),paragraph?paragraphCSS(style):''].filter(Boolean).join(';');
 }
 
+export function resolveStyleDefinition(styles:Record<string,StyleDefinition>,key:string,seen=new Set<string>()):StyleDefinition {
+  if(seen.has(key))return {name:key};seen.add(key);const style=styles[key];return style?{...(style.basedOn?resolveStyleDefinition(styles,style.basedOn,seen):{}),...style}:{name:key};
+}
+
 export function styleSheet(styles: Record<string, StyleDefinition>): string {
-  const resolve = (key: string, seen = new Set<string>()): StyleDefinition => {
-    if (seen.has(key)) return { name: key };
-    seen.add(key);
-    const style = styles[key];
-    return style ? { ...(style.basedOn ? resolve(style.basedOn, seen) : {}), ...style } : { name: key };
-  };
+  const resolve=(key:string)=>resolveStyleDefinition(styles,key);
   const selectors: Record<string, string> = { normal: '.tiptap', h1: '.tiptap h1', h2: '.tiptap h2', h3: '.tiptap h3', h4: '.tiptap h4', h5: '.tiptap h5', h6: '.tiptap h6', quote: '.tiptap blockquote', code: '.tiptap pre,.tiptap code' };
   return (styles.coverTitle?'.tiptap [data-style-id=coverTitle]{margin-top:60px}.tiptap hr:first-of-type{break-after:page}':'')+Object.keys(styles).filter(key => /^[a-zA-Z][\w-]{0,60}$/.test(key)).map(key => `${selectors[key] ?? `.tiptap [data-style="${key}"],.tiptap [data-style-id="${key}"]`}{${cssProperties(resolve(key),key!=='normal')}}`).join('\n')+`.tiptap > p:not([data-style-id]),.tiptap > p[data-style-id=normal]{${paragraphCSS(resolve('normal'))}}`+`\n.notes-list button{${cssProperties(resolve('footnote'))}}`;
 }

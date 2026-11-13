@@ -4,6 +4,7 @@ import type {DocumentFile} from './types';
 export interface SealedStorage {
   read(): Promise<string | null>;
   write(envelope: string): Promise<void>;
+  compareAndSwap?(envelope:string,expected:string|null):Promise<void>;
 }
 export interface TransferFile {name: string; text: string; base64?:string}
 export interface PlatformFiles {
