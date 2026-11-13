@@ -453,7 +453,8 @@ function registerBridge() {
         ),
       );
     if (extension === 'writely') writablePaths.add(path.resolve(filePath));
-    await library.put(document, filePath,folderId);
+    const known=(await library.list()).documents.some(d=>d.id===document.id);
+    await library.put(document, filePath,known?undefined:folderId);
     return { path: filePath, document };
   });
   handle('save', async (document, requestedPath) => {

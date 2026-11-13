@@ -18,6 +18,11 @@ test('desktop creates documents/templates/imports in selected nested folder and 
  await expect(page.locator('.document-card')).toHaveCount(2);
  const upload=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Datei öffnen',exact:true}).click();await (await upload).setFiles({name:'Import.txt',mimeType:'text/plain',buffer:Buffer.from('Ein importierter Text')});await expect(page.locator('.tiptap')).toContainText('Ein importierter Text');await page.getByRole('button',{name:'Zur Bibliothek',exact:true}).click();
  expect(await page.evaluate(id=>JSON.parse(localStorage.getItem('writely.library.v2')!).documents.every((d:any)=>d.folderId===id),target)).toBe(true);
+ // Opening an already indexed file from another location is not a move command.
+ const oldDoc=await page.evaluate(()=>JSON.parse(localStorage.getItem('writely.library.v2')!).documents.find((d:any)=>d.title==='Aufsatz Grüße').document);
+ await page.locator('.folder-breadcrumbs').getByRole('button',{name:'Meine Dokumente',exact:true}).click();const reopen=page.waitForEvent('filechooser');await page.getByRole('button',{name:'Datei öffnen',exact:true}).click();await (await reopen).setFiles({name:'Aufsatz.writely',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(oldDoc))});await expect(page.getByLabel('Dokumenttitel',{exact:true})).toHaveValue('Aufsatz Grüße');await page.getByRole('button',{name:'Zur Bibliothek',exact:true}).click();
+ expect(await page.evaluate(id=>JSON.parse(localStorage.getItem('writely.library.v2')!).documents.find((d:any)=>d.title==='Aufsatz Grüße').folderId===id,target)).toBe(true);
+
 });
 test('desktop folder metadata, bulk move, drag/drop and recursive trash restoration perform real operations',async({page})=>{
  await page.goto('/');await createFolder(page,'Ziel');await createFolder(page,'Quelle');await folderOpen(page,'Quelle');await page.getByRole('button',{name:'Neues Dokument',exact:true}).first().click();await page.getByLabel('Dokumenttitel',{exact:true}).fill('Gemeinsam');await page.getByRole('button',{name:'Zur Bibliothek',exact:true}).click();
