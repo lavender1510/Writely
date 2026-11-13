@@ -32,6 +32,7 @@ test('browser Office exporter downloads a real DOCX with intact private document
   const zip=await openZip(bytes);expect(await zip.file('word/document.xml')!.async('string')).toContain('Grüße');
   zip.remove('META-INF/writely-document.json');
   const external=await zip.generateAsync({type:'nodebuffer'});
+  await page.getByRole('button',{name:'Dokumentaktionen',exact:true}).click();
   await page.getByRole('button',{name:'Bibliothek',exact:true}).click();
   page.once('filechooser',chooser=>void chooser.setFiles({name:'External.docx',mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document',buffer:external}));
   await page.getByRole('button',{name:'Importieren',exact:true}).click();

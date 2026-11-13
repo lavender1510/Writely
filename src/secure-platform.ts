@@ -2,6 +2,7 @@ import {Capacitor,registerPlugin} from '@capacitor/core';
 import {base64,parseEnvelope} from '../core/crypto';
 import type {SealedStorage,PlatformFiles,TransferFile} from '../core/platform';
 interface NativeFiles {
+  commitSealed(options:{text:string;expected:string|null}):Promise<void>;
   readSealed():Promise<{text:string|null}>;
   writeSealed(options:{text:string}):Promise<void>;
   openFile():Promise<{cancelled?:boolean;name?:string;text?:string;base64?:string}>;
@@ -16,6 +17,14 @@ export const sealedStorage:SealedStorage = {
     if(isAndroid)return (await native.readSealed()).text;
     if(desktop()?.sealedRead)return desktop()!.sealedRead!();
     return localStorage.getItem(KEY);
+  },
+  async compareAndSwap(text,expected){
+    parseEnvelope(text);if(expected!==null)parseEnvelope(expected);
+    if(isAndroid){await native.commitSealed({text,expected});return;}
+    if(desktop()?.sealedCommit){await desktop()!.sealedCommit!(text,expected);return;}
+    if(desktop()?.sealedWrite)throw new Error('Aktualisiere die vollständige Desktop-App. Dieser Speicheradapter unterstützt keine geprüften Versionswechsel.');
+    if(!navigator.locks)throw new Error('Dieser Browser unterstützt keine sichere parallele Tresorspeicherung. Nutze die Desktop- oder Android-App.');
+    await navigator.locks.request('writely.sealed.workspace.v1',()=>{const current=localStorage.getItem(KEY),canonical=(t:string|null)=>t===null?null:JSON.stringify(parseEnvelope(t));if(canonical(current)!==canonical(expected))throw new Error('Der Tresor wurde zwischenzeitlich geändert. Entsperre ihn erneut.');localStorage.setItem(KEY,text);});
   },
   async write(text){
     parseEnvelope(text);

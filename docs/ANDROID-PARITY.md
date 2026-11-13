@@ -123,3 +123,19 @@ Dies ist kein Nachweis für alle Bildschirmtastaturen, große Medienbibliotheken
 Aktuelles UI-Redesign, tatsächliche Bedienwege und weiterhin offene Abweichungen: [ANDROID-REDESIGN.md](ANDROID-REDESIGN.md). Insbesondere bleiben echte Pagination, Handschrift/Checkboxschema, mobiler Print/PDF und individuelle Schlüsselbereiche offen.
 
 Weiterentwicklung ab 0.5.0-alpha.4: Gemeinsame Zielordner-Transaktionen, Ordnerdialoge mit Farbe/Symbol/Pin, Breadcrumbs, Mehrfachverschieben und rekursiver Ordnerpapierkorb. Windows- und Android-Bibliothek erhalten dieselben Ordnerinvarianten; Speicheradapter bleiben getrennt. Vollständige Bestandsanalyse, Datenformatänderungen, messbare Tresorgrenzen und Bücher-Meilensteine: [BOOKS-ROADMAP.md](BOOKS-ROADMAP.md). Der Bücher-Modus und echte Pagination werden damit noch nicht als implementiert ausgewiesen.
+
+## Bücher-Modus 0.6.0-alpha.1
+
+| Funktion | Windows | Android | Nachweis / konkrete Grenze |
+|---|---|---|---|
+| Buchprojekt, Dashboard, Cover und Metadaten | V | V | gemeinsame Komponenten und verschlüsselte Blöcke; Browser-Bedienprüfungen |
+| Teile/Ordner/Kapitel/Szenen, Binder | V | V | virtualisierte Navigation; Desktop-Seitenleiste und mobiler Drawer |
+| Karteikarten, Gliederung, Status und private Planung | V | V | echte Projektänderungen mit gemeinsamem Repository |
+| Umordnen, Duplizieren, rekursiver Projektpapierkorb | V | V | Drag & Drop und Touch-Alternativen; Hierarchie-/Restore-Tests |
+| Kapitelversionen, benannte Sicherungen | V | V | maximal fünf; Textvorschau, Wiederherstellung vollständiger Dokumentdaten |
+| Inkrementelle verschlüsselte Kapitelspeicherung | V | V | native Adapter, authentifiziertes Manifest, Konfliktprüfung; Root-Tresor bleibt unverändert |
+| Vollständiges verschlüsseltes Buchbackup und Merge-Import | V | V | Ciphertext-Bundle; neue IDs/Schlüssel, kein Überschreiben bestehender Projekte |
+| Story-Bible, Plot, Recherche, Gesamtbuchexport | N | N | weitere Bücher-Meilensteine; keine Attrappen |
+| Automatische editierbare Druckseiten im Bucheditor | N | N | kontinuierliche Ansicht; keine erfundenen Seitenzahlen |
+
+Der gemeinsame Tresor schützt Buchprojekte; diese Version führt keine individuellen Projektkennwörter ein. Das bisherige Dokumentformat bleibt lesbar. Root-Payload 3 und Buchmodell 1 werden ausdrücklich validiert; ältere Apps dürfen neue Buchprojekte nicht überschreiben. Vollständige Grenzen und neue Speicherstruktur: [BOOK-PROJECT-MODEL.md](BOOK-PROJECT-MODEL.md).
