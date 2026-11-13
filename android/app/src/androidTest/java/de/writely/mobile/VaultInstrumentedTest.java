@@ -49,6 +49,21 @@ public class VaultInstrumentedTest {
             js(scenario,"(()=>{const i=document.querySelector('input[type=password]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Writely Testvektor Grüße 2026');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
             js(scenario,"document.querySelector('form').requestSubmit()");
             until(scenario,"document.body.textContent.includes('Windows ↔ Android')");
+            // Create a real document in the currently opened folder before the legacy roundtrip.
+            js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Ordner').click()");
+            until(scenario,"!!document.querySelector('[aria-label=Ordnername]')");
+            js(scenario,"(()=>{const i=document.querySelector('[aria-label=Ordnername]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Android-Ordner');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
+            js(scenario,"document.querySelector('.folder-dialog').requestSubmit()");
+            until(scenario,"!document.querySelector('.folder-dialog')&&!!document.querySelector('.folder-cards button')");
+            js(scenario,"document.querySelector('.folder-cards button').click()");
+            until(scenario,"document.querySelector('[aria-label=\"Neue Inhalte in\"]').value!==''");
+            js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Neues Dokument').click()");
+            until(scenario,"!!document.querySelector('.secure-prose')");
+            js(scenario,"(()=>{const i=document.querySelector('[aria-label=Dokumenttitel]');Object.getOwnPropertyDescriptor(HTMLInputElement.prototype,'value').set.call(i,'Android-Ordnerdokument');i.dispatchEvent(new Event('input',{bubbles:true}));return true})()");
+            js(scenario,"document.querySelector('[aria-label=\"Zur Bibliothek\"]').click()");
+            until(scenario,"!!document.querySelector('.secure-card-open')&&document.querySelector('.secure-card-open').textContent.includes('Android-Ordnerdokument')");
+            js(scenario,"document.querySelector('.folder-breadcrumbs button').click()");
+            until(scenario,"document.querySelector('.secure-card-open').textContent.includes('Windows ↔ Android')");
             js(scenario,"document.querySelector('.secure-card-open').click()");
             until(scenario,"!!document.querySelector('.secure-prose table')&&!!document.querySelector('.secure-prose img')");
             assertEquals("true",js(scenario,"(()=>{const t=document.querySelector('.secure-tools');return t.scrollWidth>t.clientWidth&&document.documentElement.scrollWidth<=innerWidth})()"));

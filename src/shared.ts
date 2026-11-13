@@ -23,9 +23,9 @@ export interface DesktopBridge {
   launchOpen?():Promise<{document:DocumentFile;path?:string}|null>;
   libraryList?():Promise<any>;
   libraryGet?(id:string):Promise<{document:DocumentFile;path?:string}>;
-  libraryPut?(doc:DocumentFile,path?:string):Promise<any>;
+  libraryPut?(doc:DocumentFile,path?:string,folderId?:string|null):Promise<any>;
   libraryMutate?(action:string,data:any):Promise<any>;
-  open(): Promise<{ path: string; document: DocumentFile } | null>;
+  open(folderId?:string|null): Promise<{ path: string; document: DocumentFile } | null>;
   save(document: DocumentFile, path?: string): Promise<{ path: string } | null>;
   recover(): Promise<DocumentFile | null>;
   autosave(document: DocumentFile): Promise<void>;

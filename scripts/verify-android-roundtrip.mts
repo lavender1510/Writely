@@ -15,6 +15,7 @@ try{
   assert.ok(JSON.stringify(d.content).includes('Interoperable Notiz'));
   assert.ok(JSON.stringify(d.content).includes('"type":"bold"'));
   assert.ok(!text.includes('Interoperable Notiz'));
-  await writeFile('work/android-roundtrip.json',JSON.stringify({checks:['Node fixture unlocked by Android WebView','Native Android key input saved','Android ciphertext decrypts in Node','Tables, PNG, bold and footnote preserved'],documentId:d.id},null,2));
-  console.log('Android ↔ Node: four interoperability checks passed');
+  const folder=v.folders.find(f=>f.name==='Android-Ordner');assert.ok(folder);assert.equal(v.documents.find(r=>r.document.title==='Android-Ordnerdokument')?.folderId,folder.id);assert.ok(!text.includes('Android-Ordner'));assert.equal(v.version,2);
+  await writeFile('work/android-roundtrip.json',JSON.stringify({checks:['Node fixture unlocked by Android WebView','Native Android key input saved','Android ciphertext decrypts in Node','Tables, PNG, bold and footnote preserved','New Android document persists in its current encrypted folder'],documentId:d.id},null,2));
+  console.log('Android ↔ Node: five interoperability checks passed');
 }finally{forget(s);}

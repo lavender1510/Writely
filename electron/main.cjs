@@ -293,12 +293,13 @@ function registerBridge() {
     if (result.path) writablePaths.add(path.resolve(result.path));
     return result;
   });
-  handle('library-put', (doc, filePath) =>
+  handle('library-put', (doc, filePath, folderId) =>
     library.put(
       validateDocument(doc),
       typeof filePath === 'string' && writablePaths.has(path.resolve(filePath))
         ? filePath
         : undefined,
+      folderId,
     ),
   );
   handle('library-mutate', async (action, data) => {
@@ -378,7 +379,7 @@ function registerBridge() {
       if (!mainWindow.isDestroyed()) mainWindow.close();
     });
   });
-  handle('open', async () => {
+  handle('open', async (folderId) => {
     const result = await dialog.showOpenDialog(mainWindow, {
       title: 'Dokument öffnen',
       properties: ['openFile'],
@@ -452,7 +453,7 @@ function registerBridge() {
         ),
       );
     if (extension === 'writely') writablePaths.add(path.resolve(filePath));
-    await library.put(document, filePath);
+    await library.put(document, filePath,folderId);
     return { path: filePath, document };
   });
   handle('save', async (document, requestedPath) => {

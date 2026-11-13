@@ -1,4 +1,4 @@
-name: Android prototype build and WebView checks
+name: Android build and WebView checks
 on:
   pull_request:
   workflow_dispatch:
@@ -47,7 +47,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: Writely-Android-prototype
+          name: Writely-Android-debug
+          overwrite: true
           path: |
             android/app/build/outputs/apk/debug/*.apk
             android/app/build/reports/androidTests/
