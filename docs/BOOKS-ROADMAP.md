@@ -52,3 +52,22 @@ Das ist ein konkreter Grund, große Buchprojekte nicht ungeprüft in den Gesamtt
 Neue Unit-Tests prüfen Zielordner beim Erst-Commit, Autosave nach Neustart, fehlende Ziele, Zyklen, ENOSPC-Rollback, atomare Sammelaktionen, ältere Papierkorbeinträge und getrennte Backup-Batches in nativer und verschlüsselter Ablage. Browseraktionen prüfen verschachtelte Erstellung, Vorlagen/Import, Ordnerdesign, Mehrfachverschieben, echtes DnD, Wiederherstellung, Zielüberschreibung sowie verschlüsselten Erhalt nach Reload. Android-Instrumentierung erstellt zusätzlich einen Ordner und darin ein Dokument; der Node-Rücktransfer prüft die Zuordnung in der tatsächlich gespeicherten verschlüsselten Datei. Tatsächliche Laufresultate werden im PR verlinkt; ein bloßer Build ist kein Funktionsnachweis.
 
 Android-CI: Zwei API-35-Läufe wurden nach den Ordneraktionen durch einen systemfremden Launcher3-ANR-Dialog am echten Touchtest blockiert (InputDispatcher benennt `com.android.launcher3`). Der dedizierte, wegwerfbare CI-Emulator deaktiviert deshalb vor der Instrumentierung nur dieses Launcher-Paket. Writely, IME und die ANR-Erkennung der Anwendung bleiben aktiv; Tests werden nicht übersprungen. Dies ersetzt keinen Test mit einem realen Geräte-Launcher.
+
+## Meilenstein 2 – Buchprojekte, 0.6.0-alpha.1
+
+Implementiert auf `feat/book-projects`, aufbauend auf dem geprüften Bibliotheks-PR #6:
+
+- Eigener Bücher-Einstieg auf Windows und in der verschlüsselten Android-Bibliothek; bestehende Dokumentbibliothek bleibt erhalten.
+- Buchmetadaten mit Autor, Pseudonym, Untertitel, Serie, Genre, Sprache, Zielwortzahl, Farbe, privaten Notizen und separat gespeichertem Cover.
+- Teile, Ordner, Kapitel und Szenen mit stabilen IDs; Kapitel/Szenen bearbeiten das gemeinsame Writely-Dokumentmodell im vorhandenen Editor. Binder mit virtuellen Zeilen, Smartphone-Drawer und Tablet-Seitenleiste.
+- Dashboard, Karteikarten und konfigurierbare Gliederung; Status/Farben, Zusammenfassungen, private Notizen; Verschieben durch Drag & Drop sowie Touch-Dialog/Schaltflächen. Rekursives Duplizieren und wiederherstellbarer Projektpapierkorb.
+- Automatische und benannte Kapitel-Sicherungspunkte (höchstens fünf), Textvorschau und Wiederherstellung unter vorheriger Absicherung des aktuellen Dokuments.
+- Kapitel, Historien und Cover als getrennte AES-256-GCM-Blöcke; atomarer Manifest-Versionswechsel statt Vollverschlüsselung des Root-Tresors pro Kapiteländerung. Dieselben Formate und Validierungsregeln für Electron, Android und Browser. Details: [BOOK-PROJECT-MODEL.md](BOOK-PROJECT-MODEL.md).
+- Vollständige verschlüsselte Bibliotheksbackups enthalten die Buchblöcke. Import authentifiziert vor Schreibbeginn, vergibt neue Projekt-IDs/Schlüssel und ersetzt keine vorhandene Bibliothek. Das isolierte `workspace.sealed` ist mit Büchern kein vollständiges Backup mehr.
+- Priorisierte Android-Zurück-Behandlung schließt zuerst den sichtbaren Dialog bzw. das Dokumentmenü. Schriftmenü zeigt verfügbare Windows-Systemfonts und erhält eigene Schriftgrößen; gemeinsame Absatzvorlagen-Auflösung.
+
+Lokal ausgeführt: 103 Unit-Tests, TypeScript-Prüfung, Produktionsbuild, 33 Playwright-Bedienprüfungen, sechs native Electron-Buchprüfungen einschließlich Schließen vor Ablauf des Autosave-Timers. Android-App und Instrumentierungstestklassen kompilieren mit JDK 21. Native Android-Instrumentierung und gepackte Windows-Regression werden zusätzlich im PR ausgeführt; deren Ergebnisse sind erst nach erfolgreicher CI bestätigt.
+
+Synthetischer Linux-Test (100 Kapitel / 100.000 Wörter): Erstellung 1.551 ms, Speichern eines Kapitels 13,59 ms, Manifest öffnen 6,42 ms, ausgewähltes Kapitel laden 2,74 ms, vollständiges verschlüsseltes Backup 437 ms. Root-Tresor blieb bytegleich; beim Öffnen ein Manifest, bei Kapitelauswahl ein weiterer Block gelesen. Dies misst Speicheroperationen auf diesem Runner, keine Android-Eingabelatenz oder Seitenlayoutleistung. Reproduzierbar mit `node --import tsx scripts/benchmark-books.mts`.
+
+Noch offen: Story-Bible/Plot/Recherche, globaler Buchdesigner und Gesamtexport, echte editierbare Pagination, mobile Print-/PDF-Adapter, individuelle Kennwortbereiche/Biometrie. Es gibt hierfür keine funktionslosen Schaltflächen. Kapitelbilder bleiben eingebettet; allgemeine Asset-Deduplizierung und vollständige Textvirtualisierung sind weitere Arbeitspakete. Die Windows-Buchansicht verwendet bewusst den verschlüsselten gemeinsamen Editor, damit Buchtexte nicht in den alten Klartext-Autosave gelangen.

@@ -10,3 +10,5 @@
 .secure-editor footer span{min-width:0;overflow:hidden;text-overflow:ellipsis}.secure-editor footer span:last-child{max-width:55%}.writing-header button:focus-visible,.writing-menu button:focus-visible{outline:2px solid var(--purple);outline-offset:-2px}.secure-editor .secure-tools:focus-within{scrollbar-color:var(--purple) transparent}
 .secure-editor.secure-focus .secure-tools{display:none}.secure-editor.secure-focus .secure-page{padding-top:40px}
 .secure-editor .secure-tools>label{display:grid;place-items:center;min-width:44px;min-height:44px}.secure-editor .secure-tools button{min-width:44px;min-height:44px}.writing-header>button{min-width:44px;min-height:44px}
+
+.secure-shell .secure-editor{position:relative}

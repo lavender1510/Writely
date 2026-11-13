@@ -156,6 +156,16 @@ async function exportPDFSection(document, html, pageCSS = '') {
 
 function registerBridge() {
   const sealed = new (require('./sealed-storage.cjs').SealedStorage)(path.join(app.getPath('userData'),'sealed-workspace'));
+  const books = new (require('./book-storage.cjs').BookStorage)(path.join(app.getPath('userData'),'book-blocks'));
+  handle('book-projects',()=>books.projects());
+  handle('book-remove-project',project=>books.removeProject(project));
+  handle('book-read',(project,id)=>books.read(project,id));
+  handle('book-write',(project,id,text)=>books.writeNew(project,id,text));
+  handle('book-commit',(project,text,expected,required)=>books.compareAndSwap(project,text,expected,required));
+  handle('book-collect',(project,expected,keep,cutoff)=>books.collect(project,expected,keep,cutoff));
+  handle('book-list',project=>books.list(project));
+  handle('book-remove',(project,id)=>books.remove(project,id));
+  handle('sealed-commit',(text,expected)=>sealed.compareAndSwap(text,expected));
   handle('sealed-read',()=>sealed.read());
   handle('sealed-write',text=>sealed.write(text));
   handle('secure-open',async()=>{
@@ -169,6 +179,7 @@ function registerBridge() {
     // The isolated workspace exports ciphertext by default. Plaintext needs a
     // second trusted-process confirmation, even if a renderer bypasses its dialog.
     let encrypted=false;try{require('./sealed-storage.cjs').validateSealed(text);encrypted=true;}catch{}
+    if(!encrypted){try{const transfer=require('../core/book-bundle-format.mjs').parseVaultTransfer(text);if(transfer.bundle){require('./sealed-storage.cjs').validateSealed(transfer.vault);encrypted=true;}}catch{}}
     if(!encrypted){const answer=await dialog.showMessageBox(mainWindow,{type:'warning',title:'Kennwortschutz geht verloren',message:'Diese Datei wird unverschlüsselt exportiert. Jeder mit Zugriff auf die Datei kann den Inhalt lesen.',buttons:['Abbrechen','Unverschlüsselt exportieren'],defaultId:0,cancelId:0});if(answer.response!==1)return false;}
     const result=await dialog.showSaveDialog(mainWindow,{defaultPath:name});if(result.canceled)return false;
     await atomicWrite(result.filePath,text);return true;

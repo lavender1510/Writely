@@ -5,7 +5,16 @@ export interface HistorySettings {historyLimit:number;intervalMinutes:number;max
 export type ExportFormat = 'docx' | 'pdf' | 'html' | 'txt' | 'md' | 'odt' | 'rtf' | 'epub';
 export interface WindowPreferences { mode:'windowed'|'maximized'|'fullscreen';displayId:number;displays:{id:number;label:string}[]; }
 export interface DesktopBridge {
+  bookProjects?():Promise<{id:string;modifiedAt:number}[]>;
+  bookRemoveProject?(projectId:string):Promise<void>;
+  bookRead?(projectId:string,id:string):Promise<string|null>;
+  bookWriteNew?(projectId:string,id:string,text:string):Promise<void>;
+  bookCommit?(projectId:string,text:string,expected:string|null,required?:string[]):Promise<void>;
+  bookCollect?(projectId:string,expected:string,keep:string[],cutoff:number):Promise<number>;
+  bookList?(projectId:string):Promise<{id:string;modifiedAt:number}[]>;
+  bookRemove?(projectId:string,id:string):Promise<void>;
   onSecureFlush?(callback:()=>Promise<void>):()=>void;
+  sealedCommit?(text:string,expected:string|null):Promise<void>;
   sealedRead?():Promise<string|null>;
   sealedWrite?(text:string):Promise<void>;
   secureOpen?():Promise<{name:string;text:string}|null>;

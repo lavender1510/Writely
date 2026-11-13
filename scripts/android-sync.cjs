@@ -5,7 +5,7 @@ const root=path.resolve(__dirname,'..');
 execFileSync(process.platform==='win32'?'npx.cmd':'npx',['cap','sync','android'],{cwd:root,stdio:'inherit'});
 const assets=path.join(root,'android/app/src/androidTest/assets');
 fs.mkdirSync(assets,{recursive:true});
-fs.copyFileSync(path.join(root,'tests/fixtures/sealed-v1.writely'),path.join(assets,'sealed-v1.writely'));
+for(const name of ['sealed-v1.writely','book-bundle-v1.writely']) fs.copyFileSync(path.join(root,'tests/fixtures',name),path.join(assets,name));
 
 const licenses=path.join(root,'android/app/src/main/assets/licenses');
 fs.cpSync(path.join(root,'licenses'),licenses,{recursive:true});

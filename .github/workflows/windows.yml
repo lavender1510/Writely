@@ -34,6 +34,10 @@ jobs:
         run: npm run test:desktop
       - name: Test encrypted Windows workspace
         run: npm run test:secure-desktop
+      - name: Test encrypted book storage and native shutdown
+        run: npm run test:book-desktop
+      - name: Measure synthetic book workloads
+        run: node --import tsx scripts/benchmark-books.mts
       - name: Measure synthetic library workloads
         run: node --import tsx scripts/benchmark-library.mts
       - name: Package Windows x64
@@ -42,6 +46,10 @@ jobs:
         env:
           ELECTRON_PATH: ${{ github.workspace }}\release\win-unpacked\Writely.exe
         run: npm run test:desktop
+      - name: Test packaged book workspace
+        env:
+          ELECTRON_PATH: ${{ github.workspace }}\release\win-unpacked\Writely.exe
+        run: npm run test:book-desktop
       - uses: actions/upload-artifact@v4
         with:
           name: Writely-Windows-x64
@@ -53,6 +61,11 @@ jobs:
         with:
           name: Desktop-test-evidence
           path: |
+            work/book-desktop/report.json
+            work/book-desktop/book-desktop.png
+            work/book-desktop/desktop-book-roundtrip.writely
+            work/books-project/*.json
+            work/books-project/*.png
             work/books/*.json
             work/books/*.png
             work/secure-desktop/report.json

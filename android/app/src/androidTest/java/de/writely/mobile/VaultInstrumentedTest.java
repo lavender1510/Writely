@@ -19,6 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.json.JSONArray;
+import org.json.JSONObject;
 
 @RunWith(AndroidJUnit4.class)
 public class VaultInstrumentedTest {
@@ -32,13 +33,36 @@ public class VaultInstrumentedTest {
         while(System.currentTimeMillis()<end){if("true".equals(js(scenario,code)))return;Thread.sleep(150);}
         fail("WebView-Bedingung nicht erfüllt: "+code);
     }
+    private void typeIntoEditor(ActivityScenario<MainActivity> scenario,String text) throws Exception {
+        JSONArray point=new JSONArray(js(scenario,"(()=>{const e=document.querySelector('.secure-prose > p');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
+        AtomicReference<float[]> tap=new AtomicReference<>();
+        scenario.onActivity(activity->{WebView view=activity.getBridge().getWebView();view.requestFocus();int[] location=new int[2];view.getLocationOnScreen(location);float scale=(float)(view.getWidth()/point.optDouble(2));tap.set(new float[]{location[0]+(float)point.optDouble(0)*scale,location[1]+(float)point.optDouble(1)*scale});});
+        long time=SystemClock.uptimeMillis();float[] position=tap.get();
+        InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(time,time,MotionEvent.ACTION_DOWN,position[0],position[1],0));
+        InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(time,time+80,MotionEvent.ACTION_UP,position[0],position[1],0));
+        until(scenario,"document.activeElement===document.querySelector('.secure-prose')&&document.hasFocus()");
+        js(scenario,"(()=>{const e=document.querySelector('.secure-prose');const s=getSelection();s.selectAllChildren(e.firstChild);s.collapseToEnd();return true})()");
+        InstrumentationRegistry.getInstrumentation().waitForIdleSync();
+        InstrumentationRegistry.getInstrumentation().sendStringSync(text);
+    }
     @Test public void realWebViewUnlockEditSaveLockAndOfflineSecurity() throws Exception {
         Context app=InstrumentationRegistry.getInstrumentation().getTargetContext();
         assertEquals("de.writely.mobile",app.getPackageName());
         assertEquals(0,app.getApplicationInfo().flags & ApplicationInfo.FLAG_ALLOW_BACKUP);
         assertEquals(PackageManager.PERMISSION_DENIED,app.checkSelfPermission("android.permission.INTERNET"));
         byte[] fixture;
-        try(InputStream in=InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("sealed-v1.writely")){fixture=in.readAllBytes();}
+        try(InputStream in=InstrumentationRegistry.getInstrumentation().getContext().getAssets().open("book-bundle-v1.writely")){fixture=in.readAllBytes();}
+        JSONObject bundle=new JSONObject(new String(fixture,StandardCharsets.UTF_8));
+        fixture=bundle.getString("vault").getBytes(StandardCharsets.UTF_8);
+        JSONArray blocks=bundle.getJSONArray("blocks");
+        for(int i=0;i<blocks.length();i++){
+            JSONObject block=blocks.getJSONObject(i);
+            assertTrue(block.getString("projectId").matches("[a-f0-9-]{36}"));
+            assertTrue(block.getString("id").matches("manifest|[a-f0-9-]{36}"));
+            File dir=new File(app.getNoBackupFilesDir(),"books/"+block.getString("projectId"));
+            assertTrue(dir.isDirectory()||dir.mkdirs());
+            try(FileOutputStream out=new FileOutputStream(new File(dir,block.getString("id")+".sealed"))){out.write(block.getString("text").getBytes(StandardCharsets.UTF_8));out.getFD().sync();}
+        }
         File target=new File(app.getNoBackupFilesDir(),"workspace.sealed");
         try(FileOutputStream out=new FileOutputStream(target)){out.write(fixture);out.getFD().sync();}
         try(ActivityScenario<MainActivity> scenario=ActivityScenario.launch(MainActivity.class)){
@@ -71,18 +95,7 @@ public class VaultInstrumentedTest {
             until(scenario,"document.querySelector('.secure-prose').contentEditable==='false'&&getComputedStyle(document.querySelector('.secure-tools')).display==='none'");
             js(scenario,"document.querySelector('[aria-label=\"Lesemodus\"]').click()");
             until(scenario,"document.querySelector('.secure-prose').contentEditable==='true'");
-            // A real touch establishes Android's input connection. Programmatic
-            // DOM focus alone can race WebView/IME startup and lose key events.
-            JSONArray point=new JSONArray(js(scenario,"(()=>{const e=document.querySelector('.secure-prose > p');e.scrollIntoView({block:'center'});const r=e.getBoundingClientRect();return [r.left+r.width/2,r.top+r.height/2,innerWidth]})()"));
-            AtomicReference<float[]> tap=new AtomicReference<>();
-            scenario.onActivity(activity->{WebView view=activity.getBridge().getWebView();view.requestFocus();int[] location=new int[2];view.getLocationOnScreen(location);float scale=(float)(view.getWidth()/point.optDouble(2));tap.set(new float[]{location[0]+(float)point.optDouble(0)*scale,location[1]+(float)point.optDouble(1)*scale});});
-            long time=SystemClock.uptimeMillis();float[] position=tap.get();
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(time,time,MotionEvent.ACTION_DOWN,position[0],position[1],0));
-            InstrumentationRegistry.getInstrumentation().sendPointerSync(MotionEvent.obtain(time,time+80,MotionEvent.ACTION_UP,position[0],position[1],0));
-            until(scenario,"document.activeElement===document.querySelector('.secure-prose')&&document.hasFocus()");
-            js(scenario,"(()=>{const e=document.querySelector('.secure-prose');const s=getSelection();s.selectAllChildren(e.firstChild);s.collapseToEnd();return true})()");
-            InstrumentationRegistry.getInstrumentation().waitForIdleSync();
-            InstrumentationRegistry.getInstrumentation().sendStringSync(" Android");
+            typeIntoEditor(scenario," Android");
             until(scenario,"document.querySelector('.secure-prose').textContent.includes('Android')");
             until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
             js(scenario,"document.querySelector('[aria-label=\"Erweiterte Werkzeuge\"]').click()");
@@ -92,10 +105,23 @@ public class VaultInstrumentedTest {
             js(scenario,"(()=>{const e=document.querySelector('[aria-label=Papierformat]');e.value='A5';e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
             js(scenario,"[...document.querySelectorAll('button')].find(b=>b.textContent==='Layout anwenden').click()");
             until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
-            js(scenario,"document.querySelector('[aria-label=\"Dokumentaktionen\"]').click()");
-            until(scenario,"!!document.querySelector('[aria-label=\"Jetzt sperren\"]')");
-            js(scenario,"document.querySelector('[aria-label=\"Jetzt sperren\"]').click()");
-            until(scenario,"!document.querySelector('.secure-prose')&&!document.body.textContent.includes('Windows ↔ Android')");
+            js(scenario,"document.querySelector('[aria-label=\"Zur Bibliothek\"]').click()");
+            until(scenario,"!!document.querySelector('[aria-label=Bibliotheksansicht]')");
+            js(scenario,"(()=>{const e=document.querySelector('[aria-label=Bibliotheksansicht]');e.value='books';e.dispatchEvent(new Event('change',{bubbles:true}));return true})()");
+            until(scenario,"!!document.querySelector('.book-project-open')");
+            js(scenario,"document.querySelector('.book-project-open').click()");
+            until(scenario,"!!document.querySelector('[aria-label=\"Manuskript-Navigation öffnen\"]')");
+            js(scenario,"document.querySelector('[aria-label=\"Manuskript-Navigation öffnen\"]').click()");
+            until(scenario,"[...document.querySelectorAll('.book-binder-title')].some(b=>b.textContent==='Windows-Buchkapitel')");
+            js(scenario,"[...document.querySelectorAll('.book-binder-title')].find(b=>b.textContent==='Windows-Buchkapitel').click()");
+            until(scenario,"!!document.querySelector('.secure-prose table')&&!!document.querySelector('.secure-prose img')");
+            byte[] beforeChapterEdit=java.nio.file.Files.readAllBytes(target.toPath());
+            typeIntoEditor(scenario," Android Buch");
+            until(scenario,"document.querySelector('.secure-prose').textContent.includes('Android Buch')");
+            until(scenario,"[...document.querySelectorAll('[role=status]')].some(e=>e.textContent.includes('Verschlüsselt gespeichert'))");
+            assertArrayEquals("Kapitel-Save schreibt den Root-Tresor nicht neu",beforeChapterEdit,java.nio.file.Files.readAllBytes(target.toPath()));
+            js(scenario,"document.querySelector('[aria-label=\"Tresor jetzt sperren\"]').click()");
+            until(scenario,"[...document.querySelectorAll('button')].some(b=>b.textContent==='Tresor entsperren'&&!b.disabled)&&!document.querySelector('.secure-prose')");
             assertFalse(new String(java.nio.file.Files.readAllBytes(target.toPath()),StandardCharsets.UTF_8).contains("Windows ↔ Android"));
         }
     }
